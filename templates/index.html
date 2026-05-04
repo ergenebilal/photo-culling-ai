@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI Fotoğraf Ayıklama Sistemi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="min-h-screen bg-[#050505] text-white antialiased">
+    <main class="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-5 py-6 sm:px-8 lg:px-10">
+      <header class="flex items-center justify-between border-b border-[#2A2A2A] pb-6">
+        <p class="text-sm font-medium uppercase tracking-[0.24em] text-[#A3A3A3]">photo-culling-ai</p>
+        <div class="hidden border border-[#2A2A2A] bg-[#111111] px-4 py-2 text-sm text-[#A3A3A3] sm:block">
+          Yerel ve güvenli
+        </div>
+      </header>
+
+      <section class="grid flex-1 items-center gap-10 py-12 lg:grid-cols-[1fr_460px] lg:py-20">
+        <div class="max-w-3xl">
+          <h1 class="text-4xl font-semibold leading-tight tracking-tight sm:text-6xl">
+            AI Fotoğraf Ayıklama Sistemi
+          </h1>
+          <p class="mt-6 max-w-2xl text-lg leading-8 text-[#A3A3A3] sm:text-xl">
+            Yüzlerce fotoğrafı analiz eder, en iyi kareleri ön seçer ve benzer tekrarları otomatik ayırır.
+          </p>
+
+          <div class="mt-10 grid gap-4 sm:grid-cols-3">
+            <div class="border border-[#2A2A2A] bg-[#111111] p-5">
+              <p class="text-base font-semibold text-white">Netlik Analizi</p>
+              <p class="mt-3 text-sm leading-6 text-[#A3A3A3]">Bulanık kareleri ilk elemede ayırmaya yardımcı olur.</p>
+            </div>
+            <div class="border border-[#2A2A2A] bg-[#111111] p-5">
+              <p class="text-base font-semibold text-white">Benzer Kare Ayırma</p>
+              <p class="mt-3 text-sm leading-6 text-[#A3A3A3]">Tekrar eden karelerde en iyi sonucu öne çıkarır.</p>
+            </div>
+            <div class="border border-[#2A2A2A] bg-[#111111] p-5">
+              <p class="text-base font-semibold text-white">Hızlı ZIP Çıktısı</p>
+              <p class="mt-3 text-sm leading-6 text-[#A3A3A3]">Sonuçları indirmeye hazır klasörler halinde sunar.</p>
+            </div>
+          </div>
+        </div>
+
+        <form
+          action="/process"
+          method="post"
+          enctype="multipart/form-data"
+          class="border border-[#2A2A2A] bg-[#111111] p-6 shadow-2xl shadow-black/30 sm:p-8"
+        >
+          <div class="mb-7">
+            <h2 class="text-2xl font-semibold tracking-tight">Fotoğrafları Yükle</h2>
+            <p class="mt-3 text-sm leading-6 text-[#A3A3A3]">
+              Fotoğraf klasörünüzü seçin veya görselleri yükleyin.
+            </p>
+          </div>
+
+          {% if error %}
+            <div class="mb-5 border border-red-900/60 bg-red-950/40 px-4 py-3 text-sm text-red-200">
+              {{ error }}
+            </div>
+          {% endif %}
+
+          <label class="block cursor-pointer border border-dashed border-[#3A3A3A] bg-[#151515] px-5 py-7 text-center transition hover:border-white hover:bg-[#1A1A1A]">
+            <span class="block text-base font-medium text-white">Görselleri seç</span>
+            <span class="mt-2 block text-sm text-[#A3A3A3]">JPG, JPEG, PNG veya WEBP dosyalarını birlikte seçebilirsiniz.</span>
+            <input
+              class="mt-5 w-full text-sm text-[#A3A3A3] file:mr-4 file:border-0 file:bg-white file:px-4 file:py-2 file:text-sm file:font-semibold file:text-black hover:file:bg-neutral-200"
+              type="file"
+              name="files"
+              multiple
+            />
+          </label>
+
+          <label class="mt-4 block cursor-pointer border border-dashed border-[#3A3A3A] bg-[#151515] px-5 py-7 text-center transition hover:border-white hover:bg-[#1A1A1A]">
+            <span class="block text-base font-medium text-white">Klasör seç</span>
+            <span class="mt-2 block text-sm text-[#A3A3A3]">Klasördeki desteklenen fotoğraflar otomatik işlenir.</span>
+            <input
+              class="mt-5 w-full text-sm text-[#A3A3A3] file:mr-4 file:border-0 file:bg-white file:px-4 file:py-2 file:text-sm file:font-semibold file:text-black hover:file:bg-neutral-200"
+              type="file"
+              name="files"
+              multiple
+              webkitdirectory
+              directory
+            />
+          </label>
+
+          <button
+            type="submit"
+            class="mt-7 w-full bg-white px-5 py-4 text-sm font-semibold uppercase tracking-[0.16em] text-black transition hover:bg-neutral-200"
+          >
+            Ayıklamayı Başlat
+          </button>
+
+          <p class="mt-5 text-xs leading-5 text-[#A3A3A3]">
+            İlk eleme süresini azaltır; nihai profesyonel seçim sizde kalır.
+          </p>
+        </form>
+      </section>
+    </main>
+  </body>
+</html>

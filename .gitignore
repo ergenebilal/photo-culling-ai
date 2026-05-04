@@ -1,0 +1,17 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.env.local
+runs/
+sample_input/
+sample_output/
+output/
+*.zip
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

@@ -1,0 +1,311 @@
+from __future__ import annotations
+
+import os
+import re
+import uuid
+import zipfile
+from pathlib import Path
+
+import requests
+from dotenv import load_dotenv
+from fastapi import FastAPI, File, Request, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.templating import Jinja2Templates
+
+from src.config import (
+    CATEGORY_DUPLICATES,
+    CATEGORY_REJECTED,
+    CATEGORY_REVIEW,
+    CATEGORY_SELECTED,
+    WEB_UPLOAD_EXTENSIONS,
+)
+from src.file_manager import ensure_output_directories
+from src.pipeline import CullingResult, process_culling
+
+load_dotenv()
+
+BASE_DIR = Path(__file__).resolve().parent
+RUNS_DIR = BASE_DIR / "runs"
+TEMPLATES_DIR = BASE_DIR / "templates"
+
+app = FastAPI(title="AI Fotoğraf Ayıklama Sistemi")
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+
+
+@app.get("/", response_class=HTMLResponse)
+async def index(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request,
+        "index.html",
+        {
+            "error": None,
+        },
+    )
+
+
+@app.post("/process", response_class=HTMLResponse)
+async def process_uploads(
+    request: Request,
+    files: list[UploadFile] | None = File(default=None),
+) -> HTMLResponse:
+    if not files or all(not file.filename for file in files):
+        return _render_index_error(request, "Lütfen en az bir fotoğraf veya klasör seçin.")
+
+    job_id = str(uuid.uuid4())
+    job_dir = RUNS_DIR / job_id
+    input_dir = job_dir / "input"
+    output_dir = job_dir / "output"
+    zips_dir = output_dir / "zips"
+
+    try:
+        input_dir.mkdir(parents=True, exist_ok=True)
+        ensure_output_directories(output_dir)
+        zips_dir.mkdir(parents=True, exist_ok=True)
+
+        saved_count, unsupported_count = await _save_supported_uploads(files, input_dir)
+
+        if saved_count == 0:
+            return _render_index_error(
+                request,
+                "Yüklenen dosyalar arasında desteklenen fotoğraf bulunamadı.",
+            )
+
+        result = process_culling(
+            input_dir=input_dir,
+            output_dir=output_dir,
+            logger=print,
+            initial_skipped_count=unsupported_count,
+        )
+
+        zip_paths = _create_result_zips(output_dir, zips_dir)
+        webhook_status = _notify_n8n(request, job_id, result, zip_paths, input_dir, output_dir)
+
+        return templates.TemplateResponse(
+            request,
+            "result.html",
+            {
+                "job_id": job_id,
+                "summary": result.summary,
+            },
+        )
+    except Exception as exc:
+        print(f"Web işlemi başarısız oldu: {exc}")
+        return _render_index_error(
+            request,
+            "İşlem sırasında beklenmeyen bir hata oluştu. Lütfen dosyaları kontrol edip tekrar deneyin.",
+        )
+
+
+@app.get("/download/{job_id}/{download_type}", name="download_result", response_model=None)
+async def download_result(request: Request, job_id: str, download_type: str):
+    if not _is_valid_job_id(job_id):
+        return templates.TemplateResponse(
+            request,
+            "index.html",
+            {
+                "error": "İstenen işlem numarası geçerli değil.",
+            },
+            status_code=404,
+        )
+
+    file_map = {
+        "selected": RUNS_DIR / job_id / "output" / "zips" / "selected.zip",
+        "review": RUNS_DIR / job_id / "output" / "zips" / "review.zip",
+        "rejected": RUNS_DIR / job_id / "output" / "zips" / "rejected.zip",
+        "duplicates": RUNS_DIR / job_id / "output" / "zips" / "duplicates.zip",
+        "all": RUNS_DIR / job_id / "output" / "zips" / "all_results.zip",
+        "csv": RUNS_DIR / job_id / "output" / "report.csv",
+        "json": RUNS_DIR / job_id / "output" / "report.json",
+    }
+
+    target_path = file_map.get(download_type)
+
+    if target_path is None or not target_path.exists():
+        return templates.TemplateResponse(
+            request,
+            "index.html",
+            {
+                "error": "İstenen indirme dosyası mevcut değil.",
+            },
+            status_code=404,
+        )
+
+    return FileResponse(
+        path=target_path,
+        filename=target_path.name,
+        media_type="application/octet-stream",
+    )
+
+
+async def _save_supported_uploads(
+    files: list[UploadFile],
+    input_dir: Path,
+) -> tuple[int, int]:
+    saved_count = 0
+    unsupported_count = 0
+
+    for upload in files:
+        try:
+            if not upload.filename:
+                unsupported_count += 1
+                continue
+
+            safe_name = _sanitize_filename(upload.filename)
+
+            if Path(safe_name).suffix.lower() not in WEB_UPLOAD_EXTENSIONS:
+                unsupported_count += 1
+                continue
+
+            target_path = _build_safe_input_path(input_dir, safe_name)
+
+            with target_path.open("wb") as target_file:
+                while True:
+                    chunk = await upload.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    target_file.write(chunk)
+
+            saved_count += 1
+        finally:
+            await upload.close()
+
+    return saved_count, unsupported_count
+
+
+def _sanitize_filename(filename: str) -> str:
+    clean_name = Path(filename.replace("\\", "/")).name
+    suffix = Path(clean_name).suffix.lower()
+    stem = Path(clean_name).stem
+    safe_stem = re.sub(r"[^A-Za-z0-9_.-]+", "_", stem).strip("._")
+
+    if not safe_stem:
+        safe_stem = "foto"
+
+    return f"{safe_stem}{suffix}"
+
+
+def _build_safe_input_path(input_dir: Path, filename: str) -> Path:
+    candidate = input_dir / filename
+
+    if not candidate.exists():
+        return candidate
+
+    stem = candidate.stem
+    suffix = candidate.suffix
+    counter = 1
+
+    while True:
+        numbered_candidate = input_dir / f"{stem}_{counter}{suffix}"
+        if not numbered_candidate.exists():
+            return numbered_candidate
+        counter += 1
+
+
+def _is_valid_job_id(job_id: str) -> bool:
+    try:
+        uuid.UUID(job_id)
+    except ValueError:
+        return False
+    return True
+
+
+def _create_result_zips(output_dir: Path, zips_dir: Path) -> dict[str, Path]:
+    zip_paths = {
+        "selected": zips_dir / "selected.zip",
+        "review": zips_dir / "review.zip",
+        "rejected": zips_dir / "rejected.zip",
+        "duplicates": zips_dir / "duplicates.zip",
+        "all": zips_dir / "all_results.zip",
+    }
+
+    _zip_directory(output_dir / CATEGORY_SELECTED, zip_paths["selected"], CATEGORY_SELECTED)
+    _zip_directory(output_dir / CATEGORY_REVIEW, zip_paths["review"], CATEGORY_REVIEW)
+    _zip_directory(output_dir / CATEGORY_REJECTED, zip_paths["rejected"], CATEGORY_REJECTED)
+    _zip_directory(output_dir / CATEGORY_DUPLICATES, zip_paths["duplicates"], CATEGORY_DUPLICATES)
+    _zip_all_results(output_dir, zip_paths["all"])
+
+    return zip_paths
+
+
+def _zip_directory(source_dir: Path, zip_path: Path, root_name: str) -> None:
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        if not source_dir.exists():
+            return
+
+        for file_path in sorted(source_dir.rglob("*")):
+            if file_path.is_file():
+                zip_file.write(file_path, Path(root_name) / file_path.relative_to(source_dir))
+
+
+def _zip_all_results(output_dir: Path, zip_path: Path) -> None:
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        for file_path in sorted(output_dir.rglob("*")):
+            if not file_path.is_file():
+                continue
+            if "zips" in file_path.relative_to(output_dir).parts:
+                continue
+            zip_file.write(file_path, file_path.relative_to(output_dir))
+
+
+def _notify_n8n(
+    request: Request,
+    job_id: str,
+    result: CullingResult,
+    zip_paths: dict[str, Path],
+    input_dir: Path,
+    output_dir: Path,
+) -> str:
+    webhook_url = os.getenv("N8N_WEBHOOK_URL", "").strip()
+
+    if not webhook_url:
+        return "n8n bildirimi yapılandırılmamış"
+
+    payload = {
+        "job_id": job_id,
+        "status": "completed",
+        "summary": {
+            "total": result.summary.total,
+            "selected": result.summary.selected,
+            "review": result.summary.review,
+            "rejected": result.summary.rejected,
+            "duplicates": result.summary.duplicates,
+            "skipped": result.summary.skipped,
+        },
+        "paths": {
+            "input_dir": str(input_dir.resolve()),
+            "output_dir": str(output_dir.resolve()),
+            "selected_dir": str((output_dir / CATEGORY_SELECTED).resolve()),
+            "review_dir": str((output_dir / CATEGORY_REVIEW).resolve()),
+            "rejected_dir": str((output_dir / CATEGORY_REJECTED).resolve()),
+            "duplicates_dir": str((output_dir / CATEGORY_DUPLICATES).resolve()),
+            "report_csv": str(result.csv_path.resolve()),
+            "report_json": str(result.json_path.resolve()),
+        },
+        "downloads": {
+            "selected_zip": str(request.url_for("download_result", job_id=job_id, download_type="selected")),
+            "review_zip": str(request.url_for("download_result", job_id=job_id, download_type="review")),
+            "rejected_zip": str(request.url_for("download_result", job_id=job_id, download_type="rejected")),
+            "duplicates_zip": str(request.url_for("download_result", job_id=job_id, download_type="duplicates")),
+            "all_results_zip": str(request.url_for("download_result", job_id=job_id, download_type="all")),
+        },
+        "next_step": "OpenAI Vision enhancement can analyze selected and review images.",
+    }
+
+    try:
+        response = requests.post(webhook_url, json=payload, timeout=10)
+        response.raise_for_status()
+        return "n8n bildirimi gönderildi"
+    except requests.RequestException as exc:
+        print(f"Uyarı: n8n bildirimi başarısız oldu ama işlem tamamlandı. Detay: {exc}")
+        return "n8n bildirimi başarısız oldu ama işlem tamamlandı"
+
+
+def _render_index_error(request: Request, message: str) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request,
+        "index.html",
+        {
+            "error": message,
+        },
+        status_code=400,
+    )
