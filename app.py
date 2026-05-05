@@ -14,9 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from src.config import (
-    CATEGORY_DUPLICATES,
     CATEGORY_REJECTED,
-    CATEGORY_REVIEW,
     CATEGORY_SELECTED,
     WEB_UPLOAD_EXTENSIONS,
 )
@@ -113,10 +111,7 @@ async def download_result(request: Request, job_id: str, download_type: str):
 
     file_map = {
         "selected": RUNS_DIR / job_id / "output" / "zips" / "selected.zip",
-        "review": RUNS_DIR / job_id / "output" / "zips" / "review.zip",
         "rejected": RUNS_DIR / job_id / "output" / "zips" / "rejected.zip",
-        "duplicates": RUNS_DIR / job_id / "output" / "zips" / "duplicates.zip",
-        "all": RUNS_DIR / job_id / "output" / "zips" / "all_results.zip",
         "csv": RUNS_DIR / job_id / "output" / "report.csv",
         "json": RUNS_DIR / job_id / "output" / "report.json",
     }
@@ -215,17 +210,11 @@ def _is_valid_job_id(job_id: str) -> bool:
 def _create_result_zips(output_dir: Path, zips_dir: Path) -> dict[str, Path]:
     zip_paths = {
         "selected": zips_dir / "selected.zip",
-        "review": zips_dir / "review.zip",
         "rejected": zips_dir / "rejected.zip",
-        "duplicates": zips_dir / "duplicates.zip",
-        "all": zips_dir / "all_results.zip",
     }
 
     _zip_directory(output_dir / CATEGORY_SELECTED, zip_paths["selected"], CATEGORY_SELECTED)
-    _zip_directory(output_dir / CATEGORY_REVIEW, zip_paths["review"], CATEGORY_REVIEW)
     _zip_directory(output_dir / CATEGORY_REJECTED, zip_paths["rejected"], CATEGORY_REJECTED)
-    _zip_directory(output_dir / CATEGORY_DUPLICATES, zip_paths["duplicates"], CATEGORY_DUPLICATES)
-    _zip_all_results(output_dir, zip_paths["all"])
 
     return zip_paths
 
@@ -238,16 +227,6 @@ def _zip_directory(source_dir: Path, zip_path: Path, root_name: str) -> None:
         for file_path in sorted(source_dir.rglob("*")):
             if file_path.is_file():
                 zip_file.write(file_path, Path(root_name) / file_path.relative_to(source_dir))
-
-
-def _zip_all_results(output_dir: Path, zip_path: Path) -> None:
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zip_file:
-        for file_path in sorted(output_dir.rglob("*")):
-            if not file_path.is_file():
-                continue
-            if "zips" in file_path.relative_to(output_dir).parts:
-                continue
-            zip_file.write(file_path, file_path.relative_to(output_dir))
 
 
 def _notify_n8n(
@@ -269,29 +248,22 @@ def _notify_n8n(
         "summary": {
             "total": result.summary.total,
             "selected": result.summary.selected,
-            "review": result.summary.review,
             "rejected": result.summary.rejected,
-            "duplicates": result.summary.duplicates,
             "skipped": result.summary.skipped,
         },
         "paths": {
             "input_dir": str(input_dir.resolve()),
             "output_dir": str(output_dir.resolve()),
             "selected_dir": str((output_dir / CATEGORY_SELECTED).resolve()),
-            "review_dir": str((output_dir / CATEGORY_REVIEW).resolve()),
             "rejected_dir": str((output_dir / CATEGORY_REJECTED).resolve()),
-            "duplicates_dir": str((output_dir / CATEGORY_DUPLICATES).resolve()),
             "report_csv": str(result.csv_path.resolve()),
             "report_json": str(result.json_path.resolve()),
         },
         "downloads": {
             "selected_zip": str(request.url_for("download_result", job_id=job_id, download_type="selected")),
-            "review_zip": str(request.url_for("download_result", job_id=job_id, download_type="review")),
             "rejected_zip": str(request.url_for("download_result", job_id=job_id, download_type="rejected")),
-            "duplicates_zip": str(request.url_for("download_result", job_id=job_id, download_type="duplicates")),
-            "all_results_zip": str(request.url_for("download_result", job_id=job_id, download_type="all")),
         },
-        "next_step": "OpenAI Vision enhancement can analyze selected and review images.",
+        "next_step": "OpenAI Vision enhancement can analyze selected and eliminated images.",
     }
 
     try:

@@ -25,11 +25,11 @@
 
       <section class="py-10">
         <p class="max-w-3xl text-lg leading-8 text-[#A3A3A3] sm:text-xl">
-          Fotoğraflarınız analiz edildi. Seçilen ve tekrar olarak ayrılan görselleri aşağıdan indirebilirsiniz.
+          İş bitti. En iyi kareler seçildi, gereksiz ve tekrar olanlar elendi.
         </p>
       </section>
 
-      <section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <section class="grid gap-4 sm:grid-cols-3">
         <div class="border border-[#2A2A2A] bg-[#111111] p-6">
           <p class="text-sm text-[#A3A3A3]">Toplam Fotoğraf</p>
           <p class="mt-4 text-5xl font-semibold">{{ summary.total }}</p>
@@ -39,51 +39,34 @@
           <p class="mt-4 text-5xl font-semibold">{{ summary.selected }}</p>
         </div>
         <div class="border border-[#2A2A2A] bg-[#111111] p-6">
-          <p class="text-sm text-[#A3A3A3]">Benzer/Tekrar</p>
-          <p class="mt-4 text-5xl font-semibold">{{ summary.duplicates }}</p>
+          <p class="text-sm text-[#A3A3A3]">Elenen</p>
+          <p class="mt-4 text-5xl font-semibold">{{ summary.rejected }}</p>
         </div>
-        <div class="border border-[#2A2A2A] bg-[#111111] p-6">
-          <p class="text-sm text-[#A3A3A3]">Atlanan/Hatalı</p>
-          <p class="mt-4 text-5xl font-semibold">{{ summary.skipped }}</p>
-        </div>
-        {% if summary.review > 0 %}
-          <div class="border border-[#2A2A2A] bg-[#111111] p-6">
-            <p class="text-sm text-[#A3A3A3]">İncelemeye Kalan</p>
-            <p class="mt-4 text-5xl font-semibold">{{ summary.review }}</p>
-          </div>
-        {% endif %}
-        {% if summary.rejected > 0 %}
-          <div class="border border-[#2A2A2A] bg-[#111111] p-6">
-            <p class="text-sm text-[#A3A3A3]">Reddedilen</p>
-            <p class="mt-4 text-5xl font-semibold">{{ summary.rejected }}</p>
-          </div>
-        {% endif %}
       </section>
 
+      {% if summary.skipped > 0 %}
+        <section class="mt-4 border border-[#2A2A2A] bg-[#111111] p-5">
+          <p class="text-sm text-[#A3A3A3]">Hatalı/Atlanan</p>
+          <p class="mt-2 text-2xl font-semibold">{{ summary.skipped }}</p>
+        </section>
+      {% endif %}
+
       <section class="mt-8 border border-[#2A2A2A] bg-[#111111] p-6 sm:p-8">
-        <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 class="text-2xl font-semibold">İndirilecek Dosyalar</h2>
-            <p class="mt-3 text-sm leading-6 text-[#A3A3A3]">Sadece içinde fotoğraf olan sonuçlar gösterilir.</p>
-          </div>
+        <div>
+          <h2 class="text-2xl font-semibold">İndirme</h2>
+          <p class="mt-3 text-sm leading-6 text-[#A3A3A3]">Seçilen en iyi fotoğrafları ve elenenleri ayrı ayrı indirebilirsiniz.</p>
         </div>
 
         <div class="mt-7 grid gap-3 sm:grid-cols-2">
           {% if summary.selected > 0 %}
             <a class="border border-white bg-white px-5 py-4 text-center text-sm font-semibold text-black transition hover:bg-neutral-200" href="/download/{{ job_id }}/selected">Seçilen Fotoğrafları İndir</a>
           {% endif %}
-          {% if summary.review > 0 %}
-            <a class="border border-[#3A3A3A] bg-[#151515] px-5 py-4 text-center text-sm font-semibold text-white transition hover:border-white hover:bg-[#1A1A1A]" href="/download/{{ job_id }}/review">İncelemeye Kalanları İndir</a>
-          {% endif %}
           {% if summary.rejected > 0 %}
-            <a class="border border-[#3A3A3A] bg-[#151515] px-5 py-4 text-center text-sm font-semibold text-white transition hover:border-white hover:bg-[#1A1A1A]" href="/download/{{ job_id }}/rejected">Reddedilen Fotoğrafları İndir</a>
-          {% endif %}
-          {% if summary.duplicates > 0 %}
-            <a class="border border-[#3A3A3A] bg-[#151515] px-5 py-4 text-center text-sm font-semibold text-white transition hover:border-white hover:bg-[#1A1A1A]" href="/download/{{ job_id }}/duplicates">Benzer/Tekrar Fotoğrafları İndir</a>
+            <a class="border border-[#3A3A3A] bg-[#151515] px-5 py-4 text-center text-sm font-semibold text-white transition hover:border-white hover:bg-[#1A1A1A]" href="/download/{{ job_id }}/rejected">Elenen Fotoğrafları İndir</a>
           {% endif %}
         </div>
 
-        {% if summary.selected == 0 and summary.review == 0 and summary.rejected == 0 and summary.duplicates == 0 %}
+        {% if summary.selected == 0 and summary.rejected == 0 %}
           <p class="mt-6 text-sm leading-6 text-[#A3A3A3]">
             İndirilebilir fotoğraf bulunamadı. Yüklenen dosyalar hatalı, desteklenmeyen veya işlenemeyen görseller olabilir.
           </p>

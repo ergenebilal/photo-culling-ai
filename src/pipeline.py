@@ -6,7 +6,7 @@ from typing import Any, Callable
 
 from src.analyzer import ImageAnalyzer
 from src.classifier import classify_photo
-from src.config import CATEGORY_DUPLICATES, CATEGORY_REJECTED, CATEGORY_REVIEW, CATEGORY_SELECTED
+from src.config import CATEGORY_REJECTED, CATEGORY_SELECTED
 from src.file_manager import copy_to_category, ensure_output_directories, find_supported_files
 from src.report import write_reports
 from src.similarity import mark_similar_groups
@@ -19,7 +19,6 @@ LogFunction = Callable[[str], None]
 class CullingSummary:
     total: int
     selected: int
-    review: int
     rejected: int
     duplicates: int
     skipped: int
@@ -55,7 +54,6 @@ def process_culling(
             summary=CullingSummary(
                 total=0,
                 selected=0,
-                review=0,
                 rejected=0,
                 duplicates=0,
                 skipped=0,
@@ -120,16 +118,7 @@ def _build_summary(records: list[dict[str, Any]], skipped_count: int) -> Culling
             for record in records
             if record["category"] == CATEGORY_SELECTED and not record["is_duplicate"]
         ),
-        review=sum(
-            1
-            for record in records
-            if record["category"] == CATEGORY_REVIEW and not record["is_duplicate"]
-        ),
-        rejected=sum(
-            1
-            for record in records
-            if record["category"] == CATEGORY_REJECTED and not record["is_duplicate"]
-        ),
+        rejected=sum(1 for record in records if record["category"] == CATEGORY_REJECTED),
         duplicates=sum(1 for record in records if record["is_duplicate"]),
         skipped=skipped_count,
     )
@@ -142,13 +131,20 @@ def _copy_records(
 ) -> None:
     for record in records:
         source_path = Path(record["source_path"])
-        target_category = CATEGORY_DUPLICATES if record["is_duplicate"] else record["category"]
+        if record["is_duplicate"]:
+            record["category"] = CATEGORY_REJECTED
+            record["reason"] = (
+                "Fotoğraf benzer/tekrar kare olduğu için elenenler arasına alındı. "
+                f"En iyi eşleşme: {record['duplicate_of']}."
+            )
+
+        target_category = record["category"]
         copied_path = copy_to_category(source_path, output_dir, target_category)
         record["copied_path"] = str(copied_path.resolve())
 
         if record["is_duplicate"]:
             log(
-                f"Benzer görsel ayrıldı: duplicates/{copied_path.name} "
+                f"Benzer görsel elendi: rejected/{copied_path.name} "
                 f"- En iyi eşleşme: {record['duplicate_of']}"
             )
         else:

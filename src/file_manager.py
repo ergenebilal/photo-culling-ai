@@ -4,9 +4,7 @@ import shutil
 from pathlib import Path
 
 from src.config import (
-    CATEGORY_DUPLICATES,
     CATEGORY_REJECTED,
-    CATEGORY_REVIEW,
     CATEGORY_SELECTED,
     SUPPORTED_EXTENSIONS,
 )
@@ -15,7 +13,7 @@ from src.config import (
 def ensure_output_directories(output_dir: Path) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    for category in (CATEGORY_SELECTED, CATEGORY_REVIEW, CATEGORY_REJECTED, CATEGORY_DUPLICATES):
+    for category in (CATEGORY_SELECTED, CATEGORY_REJECTED):
         (output_dir / category).mkdir(parents=True, exist_ok=True)
 
 

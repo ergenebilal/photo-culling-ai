@@ -4,7 +4,7 @@
 
 AI Fotoğraf Ayıklama Sistemi, fotoğraf eleme sürecini hızlandıran, benzer tekrarları ayıran ve en iyi kareleri ön seçen web tabanlı bir sistemdir.
 
-Sistem yerel olarak çalışır, fotoğrafları analiz eder, seçilen görselleri ayrı indirilebilir çıktılar halinde hazırlar ve benzer/tekrar kareleri ana sonuçlardan ayırır.
+Sistem yerel olarak çalışır, fotoğrafları analiz eder, en iyi kareleri `Seçilenler` olarak hazırlar; düşük kaliteli, gereksiz ve benzer/tekrar kareleri `Elenenler` çıktısında toplar.
 
 ## Özellikler
 

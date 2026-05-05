@@ -3,9 +3,7 @@ from __future__ import annotations
 from src.analyzer import PhotoAnalysis
 from src.config import (
     CATEGORY_REJECTED,
-    CATEGORY_REVIEW,
     CATEGORY_SELECTED,
-    REVIEW_THRESHOLD,
     SELECTED_THRESHOLD,
 )
 
@@ -13,9 +11,6 @@ from src.config import (
 def classify_photo(analysis: PhotoAnalysis) -> tuple[str, str]:
     if analysis.final_score >= SELECTED_THRESHOLD:
         return CATEGORY_SELECTED, _build_selected_reason(analysis)
-
-    if analysis.final_score >= REVIEW_THRESHOLD:
-        return CATEGORY_REVIEW, _build_review_reason(analysis)
 
     return CATEGORY_REJECTED, _build_rejected_reason(analysis)
 
@@ -38,33 +33,18 @@ def _build_selected_reason(analysis: PhotoAnalysis) -> str:
     return "Fotoğraf genel kalite skoru yüksek olduğu için selected kategorisine alındı."
 
 
-def _build_review_reason(analysis: PhotoAnalysis) -> str:
-    weak_points = _find_weak_points(analysis)
-
-    if weak_points:
-        return (
-            "Fotoğraf genel olarak kullanılabilir ancak "
-            f"{', '.join(weak_points)} nedeniyle review kategorisine alındı."
-        )
-
-    return (
-        "Fotoğraf genel olarak iyi ancak bazı kalite değerleri kararsız olduğu için "
-        "review kategorisine alındı."
-    )
-
-
 def _build_rejected_reason(analysis: PhotoAnalysis) -> str:
     weak_points = _find_weak_points(analysis)
 
     if analysis.blur_score < 45:
-        return "Fotoğraf bulanık olduğu için rejected kategorisine alındı."
+        return "Fotoğraf bulanık olduğu için elenenler arasına alındı."
 
     if weak_points:
         return (
-            f"Fotoğraf {', '.join(weak_points)} nedeniyle rejected kategorisine alındı."
+            f"Fotoğraf {', '.join(weak_points)} nedeniyle elenenler arasına alındı."
         )
 
-    return "Fotoğraf final kalite skoru düşük olduğu için rejected kategorisine alındı."
+    return "Fotoğraf final kalite skoru seçilenler eşiğinin altında kaldığı için elenenler arasına alındı."
 
 
 def _find_weak_points(analysis: PhotoAnalysis) -> list[str]:
