@@ -41,6 +41,7 @@ class PhotoResult(Base):
     final_score = Column(Float)
     reason = Column(Text)
     relative_path = Column(String)  # Path relative to runs/{job_id}/output/
+    thumbnail_path = Column(String) # Path relative to runs/{job_id}/
 
 
 def init_db():

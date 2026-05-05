@@ -40,7 +40,7 @@ class ImageAnalyzer:
         if self.face_detector.empty():
             raise RuntimeError("OpenCV yüz tespit modeli yüklenemedi.")
 
-    def analyze(self, image_path: Path) -> PhotoAnalysis:
+    def analyze(self, image_path: Path, thumbnail_path: Path | None = None) -> PhotoAnalysis:
         rgb_image = self._load_rgb_image(image_path)
         rgb_image = self._resize_for_analysis(rgb_image)
         gray_image = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2GRAY)
@@ -57,7 +57,11 @@ class ImageAnalyzer:
         )
 
         pil_image = Image.fromarray(rgb_image)
-        pil_image.thumbnail((512, 512))
+        pil_image.thumbnail((800, 800))
+
+        if thumbnail_path:
+            thumbnail_path.parent.mkdir(parents=True, exist_ok=True)
+            pil_image.save(thumbnail_path, "JPEG", quality=80)
 
         return PhotoAnalysis(
             blur_score=blur_score,

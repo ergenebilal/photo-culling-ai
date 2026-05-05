@@ -38,6 +38,7 @@ class CullingResult:
 def process_culling(
     input_dir: Path,
     output_dir: Path,
+    thumbnail_dir: Path | None = None,
     logger: LogFunction | None = None,
     initial_skipped_count: int = 0,
     max_workers: int | None = None,
@@ -70,10 +71,17 @@ def process_culling(
     log(f"Paralel analiz başlatıldı. İşçi sayısı: {worker_count}")
 
     with ProcessPoolExecutor(max_workers=worker_count) as executor:
-        future_map = {
-            executor.submit(_analyze_photo_worker, str(image_path.resolve())): image_path
-            for image_path in image_paths
-        }
+        future_map = {}
+        for image_path in image_paths:
+            # Thumbnail ismini güvenli hale getir
+            t_name = f"{image_path.stem}_{uuid.uuid4().hex[:8]}.jpg"
+            t_path = thumbnail_dir / t_name if thumbnail_dir else None
+            future = executor.submit(
+                _analyze_photo_worker, 
+                str(image_path.resolve()), 
+                str(t_path.resolve()) if t_path else None
+            )
+            future_map[future] = image_path
 
         for completed_count, future in enumerate(as_completed(future_map), start=1):
             image_path = future_map[future]
@@ -125,6 +133,10 @@ def _copy_records(
     output_dir: Path,
     log: LogFunction,
 ) -> None:
+    # Runs klasörünün yerini tespit et (kopyalama kararı için)
+    # output_dir: runs/{job_id}/output
+    runs_dir = output_dir.parent.parent
+    
     for record in records:
         source_path = Path(record["source_path"])
         if record["is_duplicate"]:
@@ -135,24 +147,34 @@ def _copy_records(
             )
 
         target_category = record["category"]
-        copied_path = copy_to_category(source_path, output_dir, target_category)
-        record["copied_path"] = str(copied_path.resolve())
-
-        if record["is_duplicate"]:
-            log(
-                f"Benzer görsel elendi: rejected/{copied_path.name} "
-                f"- En iyi eşleşme: {record['duplicate_of']}"
-            )
+        
+        # Akıllı Kopyalama Kararı:
+        # Sadece SEÇİLENLERİ veya UPLOAD edilen (runs içindeki) dosyaları kopyala.
+        # Yerel klasördeki ELENENLERİ kopyalamıyoruz.
+        should_copy = True
+        if target_category == CATEGORY_REJECTED:
+            try:
+                # Dosya runs klasörü içindeyse (upload) kopyala, dışındaysa (yerel) atla.
+                source_path.resolve().relative_to(runs_dir.resolve())
+            except ValueError:
+                should_copy = False
+        
+        if should_copy:
+            copied_path = copy_to_category(source_path, output_dir, target_category)
+            record["copied_path"] = str(copied_path.resolve())
+            log(f"Kopyalandı: {record['category']}/{copied_path.name}")
         else:
-            log(f"Kopyalandı: {record['category']}/{copied_path.name} - {record['reason']}")
+            record["copied_path"] = str(source_path.resolve())
+            log(f"Yerinde bırakıldı (Elenen): {source_path.name}")
 
 
-def _analyze_photo_worker(image_path_text: str) -> dict[str, Any]:
+def _analyze_photo_worker(image_path_text: str, thumbnail_path_text: str | None = None) -> dict[str, Any]:
     image_path = Path(image_path_text)
+    thumbnail_path = Path(thumbnail_path_text) if thumbnail_path_text else None
 
     try:
         analyzer = ImageAnalyzer()
-        analysis = analyzer.analyze(image_path)
+        analysis = analyzer.analyze(image_path, thumbnail_path=thumbnail_path)
         category, reason = classify_photo(analysis)
         return {
             "success": True,
@@ -173,6 +195,7 @@ def _analyze_photo_worker(image_path_text: str) -> dict[str, Any]:
                 "best_in_group": True,
                 "is_duplicate": False,
                 "duplicate_of": "",
+                "thumbnail_path": thumbnail_path_text or "",
             },
             "error": "",
         }

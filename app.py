@@ -56,6 +56,81 @@ async def index(request: Request) -> HTMLResponse:
     )
 
 
+from pydantic import BaseModel
+
+class LocalPathRequest(BaseModel):
+    path: str
+
+@app.post("/process-local", response_class=HTMLResponse)
+async def process_local_path(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    payload: LocalPathRequest = None,
+    db: Session = Depends(get_db),
+    path: str = None # Fallback for form data
+) -> HTMLResponse:
+    # Hem JSON hem Form verisini destekle
+    source_path = path or (payload.path if payload else None)
+    
+    if not source_path:
+        # Formdan gelmiş olabilir
+        form_data = await request.form()
+        source_path = form_data.get("path")
+
+    if not source_path or not Path(source_path).exists() or not Path(source_path).is_dir():
+        return _render_index_error(request, f"Geçersiz veya bulunamayan klasör yolu: {source_path}")
+
+    input_dir = Path(source_path)
+    job_id = str(uuid.uuid4())
+    job_dir = RUNS_DIR / job_id
+    output_dir = job_dir / "output"
+    zips_dir = output_dir / "zips"
+    thumbnails_dir = job_dir / "thumbnails"
+
+    try:
+        ensure_output_directories(output_dir)
+        zips_dir.mkdir(parents=True, exist_ok=True)
+        thumbnails_dir.mkdir(parents=True, exist_ok=True)
+
+        # Create database entry
+        new_job = Job(
+            id=job_id,
+            status="processing",
+            message=f"Yerel klasör analiz ediliyor: {source_path}",
+            total_count=0 # Analiz sırasında güncellenecek
+        )
+        db.add(new_job)
+        db.commit()
+
+        background_tasks.add_task(
+            _run_culling_job,
+            job_id,
+            input_dir,
+            output_dir,
+            zips_dir,
+            0,
+            str(request.base_url).rstrip("/"),
+            thumbnails_dir
+        )
+
+        return templates.TemplateResponse(
+            request,
+            "result.html",
+            {
+                "job_id": job_id,
+                "job_status": "processing",
+                "message": "Yerel tarama başladı. Dosyalar kopyalanmadan yerinde analiz ediliyor.",
+                "summary": {"total": 0, "selected": 0, "rejected": 0, "skipped": 0},
+                "selected_items": [],
+                "rejected_items": [],
+                "error": "",
+            },
+        )
+    except Exception as exc:
+        print(f"Yerel işlem başarısız oldu: {exc}")
+        return _render_index_error(request, "Yerel klasör işlenirken bir hata oluştu.")
+
+
 @app.post("/process", response_class=HTMLResponse)
 async def process_uploads(
     request: Request,
@@ -71,11 +146,13 @@ async def process_uploads(
     input_dir = job_dir / "input"
     output_dir = job_dir / "output"
     zips_dir = output_dir / "zips"
+    thumbnails_dir = job_dir / "thumbnails"
 
     try:
         input_dir.mkdir(parents=True, exist_ok=True)
         ensure_output_directories(output_dir)
         zips_dir.mkdir(parents=True, exist_ok=True)
+        thumbnails_dir.mkdir(parents=True, exist_ok=True)
 
         saved_count, unsupported_count = await _save_supported_uploads(files, input_dir)
 
@@ -102,6 +179,7 @@ async def process_uploads(
             zips_dir,
             unsupported_count,
             str(request.base_url).rstrip("/"),
+            thumbnails_dir
         )
 
         return templates.TemplateResponse(
@@ -389,12 +467,14 @@ def _run_culling_job(
     zips_dir: Path,
     unsupported_count: int,
     base_url: str,
+    thumbnail_dir: Path | None = None,
 ) -> None:
     db = SessionLocal()
     try:
         result = process_culling(
             input_dir=input_dir,
             output_dir=output_dir,
+            thumbnail_dir=thumbnail_dir,
             logger=print,
             initial_skipped_count=unsupported_count,
         )
@@ -404,18 +484,26 @@ def _run_culling_job(
         job = db.query(Job).filter(Job.id == job_id).first()
         job.status = "completed"
         job.message = "Fotoğraflarınız hazır. En iyi kareler seçildi, gereksizler elendi."
+        job.total_count = result.summary.total
         job.selected_count = result.summary.selected
         job.rejected_count = result.summary.rejected
         job.skipped_count = result.summary.skipped
         
         for record in result.records:
+            t_path = record.get("thumbnail_path")
+            t_rel_path = ""
+            if t_path:
+                # runs/{job_id}/thumbnails/name.jpg -> thumbnails/name.jpg
+                t_rel_path = f"thumbnails/{Path(t_path).name}"
+
             photo = PhotoResult(
                 job_id=job_id,
                 filename=record["filename"],
                 category=record["category"],
                 final_score=record["final_score"],
                 reason=record["reason"],
-                relative_path=f"{record['category']}/{record['filename']}"
+                relative_path=f"output/{record['category']}/{record['filename']}",
+                thumbnail_path=t_rel_path
             )
             db.add(photo)
         

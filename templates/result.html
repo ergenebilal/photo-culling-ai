@@ -102,7 +102,12 @@
             <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                 {% for photo in selected_items %}
                 <div id="photo-{{ photo.id }}" class="photo-card relative group rounded-2xl overflow-hidden bg-[#111] border border-white/5 aspect-square">
-                    <img src="/runs/{{ job_id }}/output/{{ photo.category }}/{{ photo.filename }}" alt="{{ photo.filename }}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110">
+                    <img 
+                        src="/runs/{{ job_id }}/{{ photo.thumbnail_path if photo.thumbnail_path else photo.relative_path }}" 
+                        alt="{{ photo.filename }}" 
+                        class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                        loading="lazy"
+                    >
                     <div class="overlay absolute inset-0 bg-black/60 opacity-0 transition-all duration-300 flex flex-col justify-end p-4">
                         <p class="text-xs font-bold text-white mb-1">Skor: {{ photo.final_score }}</p>
                         <p class="text-[10px] text-white/60 mb-4 line-clamp-2">{{ photo.reason }}</p>
@@ -125,7 +130,12 @@
             <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                 {% for photo in rejected_items %}
                 <div id="photo-{{ photo.id }}" class="photo-card relative group rounded-xl overflow-hidden bg-[#111] border border-white/5 aspect-square">
-                    <img src="/runs/{{ job_id }}/output/{{ photo.category }}/{{ photo.filename }}" alt="{{ photo.filename }}" class="w-full h-full object-cover opacity-40 group-hover:opacity-100 transition-all">
+                    <img 
+                        src="/runs/{{ job_id }}/{{ photo.thumbnail_path if photo.thumbnail_path else photo.relative_path }}" 
+                        alt="{{ photo.filename }}" 
+                        class="w-full h-full object-cover opacity-40 group-hover:opacity-100 transition-all"
+                        loading="lazy"
+                    >
                     <div class="overlay absolute inset-0 bg-black/80 opacity-0 transition-all duration-300 flex flex-col justify-center items-center p-2">
                         <button onclick="togglePhoto('{{ job_id }}', {{ photo.id }})" class="p-2 rounded-full bg-white text-black hover:scale-110 transition-transform">
                             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 1.414L10.586 9H7a1 1 0 100 2h3.586l-1.293 1.293a1 1 0 101.414 1.414l3-3a1 1 0 000-1.414z"></path></svg>

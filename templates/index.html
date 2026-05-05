@@ -64,9 +64,39 @@
               enctype="multipart/form-data"
               class="relative glass p-8 sm:p-12 rounded-[2.5rem] shadow-2xl space-y-8"
             >
+              <!-- Local Mode (Professional) -->
+              <div class="mb-12">
+                <h2 class="text-2xl font-bold text-white mb-2">Yerel Klasör Analizi <span class="ml-2 text-[10px] bg-white/10 text-white px-2 py-1 rounded-full uppercase tracking-widest">Turbo</span></h2>
+                <p class="text-sm text-white/40 mb-6">Bilgisayarınızdaki klasörü kopyalamadan, anında tarayın (1000+ RAW için önerilir).</p>
+                
+                <form action="/process-local" method="post" class="space-y-4">
+                    <div class="relative group">
+                        <input 
+                            type="text" 
+                            name="path" 
+                            placeholder="Örn: C:\Fotolar\Düğün_Gecesi" 
+                            required
+                            class="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-5 text-sm focus:outline-none focus:border-white/30 transition-all placeholder:text-white/10"
+                        >
+                        <button 
+                            type="submit" 
+                            class="absolute right-2 top-2 bottom-2 px-6 bg-white text-black text-xs font-bold rounded-xl hover:bg-neutral-200 transition-all"
+                        >
+                            Taramayı Başlat
+                        </button>
+                    </div>
+                </form>
+              </div>
+
+              <div class="flex items-center gap-4 py-4 mb-8">
+                  <div class="h-px bg-white/5 flex-1"></div>
+                  <span class="text-[10px] font-bold text-white/20 uppercase tracking-widest">Veya Manuel Yükle</span>
+                  <div class="h-px bg-white/5 flex-1"></div>
+              </div>
+
               <div>
-                <h2 class="text-2xl font-bold text-white mb-2">Yüklemeyi Başlat</h2>
-                <p class="text-sm text-white/40">Fotoğraf klasörünü veya tekil dosyaları seçin.</p>
+                <h2 class="text-xl font-bold text-white mb-2">Dosya Yükle</h2>
+                <p class="text-sm text-white/40">Küçük çekimler için tarayıcıdan dosya seçin.</p>
               </div>
 
               {% if error %}
