@@ -2,39 +2,47 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 import uuid
 import zipfile
 from pathlib import Path
-from threading import Lock
 from typing import Any
 
 import requests
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, FastAPI, File, Request, UploadFile
+from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from sqlalchemy.orm import Session
 
+from src.cleanup import start_cleanup_service
 from src.config import (
     CATEGORY_REJECTED,
     CATEGORY_SELECTED,
     WEB_UPLOAD_EXTENSIONS,
 )
+from src.database import Job, PhotoResult, SessionLocal, get_db, init_db
 from src.file_manager import ensure_output_directories
 from src.pipeline import CullingResult, process_culling
 
 load_dotenv()
+init_db()
+
+app = FastAPI(title="AI Fotoğraf Ayıklama Sistemi")
+
+@app.on_event("startup")
+async def startup_event():
+    start_cleanup_service()
 
 BASE_DIR = Path(__file__).resolve().parent
 RUNS_DIR = BASE_DIR / "runs"
 TEMPLATES_DIR = BASE_DIR / "templates"
 STATIC_DIR = BASE_DIR / "static"
 
-app = FastAPI(title="AI Fotoğraf Ayıklama Sistemi")
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+app.mount("/runs", StaticFiles(directory=str(RUNS_DIR)), name="runs")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
-JOBS: dict[str, dict[str, Any]] = {}
-JOBS_LOCK = Lock()
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -53,6 +61,7 @@ async def process_uploads(
     request: Request,
     background_tasks: BackgroundTasks,
     files: list[UploadFile] | None = File(default=None),
+    db: Session = Depends(get_db),
 ) -> HTMLResponse:
     if not files or all(not file.filename for file in files):
         return _render_index_error(request, "Lütfen en az bir fotoğraf veya klasör seçin.")
@@ -76,17 +85,15 @@ async def process_uploads(
                 "Yüklenen dosyalar arasında desteklenen fotoğraf bulunamadı.",
             )
 
-        _set_job_state(
-            job_id,
-            {
-                "status": "processing",
-                "message": "İşlem başladı. Fotoğraflar arka planda analiz ediliyor.",
-                "summary": None,
-                "selected_items": [],
-                "rejected_items": [],
-                "error": "",
-            },
+        new_job = Job(
+            id=job_id,
+            status="processing",
+            message="İşlem başladı. Fotoğraflar arka planda analiz ediliyor.",
+            total_count=saved_count
         )
+        db.add(new_job)
+        db.commit()
+
         background_tasks.add_task(
             _run_culling_job,
             job_id,
@@ -104,7 +111,7 @@ async def process_uploads(
                 "job_id": job_id,
                 "job_status": "processing",
                 "message": "İşlem başladı. Fotoğraflar arka planda analiz ediliyor.",
-                "summary": None,
+                "summary": {"total": saved_count, "selected": 0, "rejected": 0, "skipped": unsupported_count},
                 "selected_items": [],
                 "rejected_items": [],
                 "error": "",
@@ -119,10 +126,10 @@ async def process_uploads(
 
 
 @app.get("/result/{job_id}", response_class=HTMLResponse)
-async def result_page(request: Request, job_id: str) -> HTMLResponse:
-    job_state = _get_job_state(job_id)
+async def result_page(request: Request, job_id: str, db: Session = Depends(get_db)) -> HTMLResponse:
+    job = db.query(Job).filter(Job.id == job_id).first()
 
-    if not job_state:
+    if not job:
         return templates.TemplateResponse(
             request,
             "index.html",
@@ -132,19 +139,62 @@ async def result_page(request: Request, job_id: str) -> HTMLResponse:
             status_code=404,
         )
 
+    photos = db.query(PhotoResult).filter(PhotoResult.job_id == job_id).all()
+    selected_items = [p for p in photos if p.category == CATEGORY_SELECTED]
+    rejected_items = [p for p in photos if p.category == CATEGORY_REJECTED]
+
+    summary = {
+        "total": job.total_count,
+        "selected": job.selected_count,
+        "rejected": job.rejected_count,
+        "skipped": job.skipped_count
+    }
+
     return templates.TemplateResponse(
         request,
         "result.html",
         {
             "job_id": job_id,
-            "job_status": job_state["status"],
-            "message": job_state["message"],
-            "summary": job_state["summary"],
-            "selected_items": job_state["selected_items"],
-            "rejected_items": job_state["rejected_items"],
-            "error": job_state["error"],
+            "job_status": job.status,
+            "message": job.message,
+            "summary": summary,
+            "selected_items": selected_items,
+            "rejected_items": rejected_items,
+            "error": "",
         },
     )
+
+
+@app.post("/toggle-photo/{job_id}/{photo_id}")
+async def toggle_photo(job_id: str, photo_id: int, db: Session = Depends(get_db)):
+    photo = db.query(PhotoResult).filter(PhotoResult.id == photo_id, PhotoResult.job_id == job_id).first()
+    if not photo:
+        raise HTTPException(status_code=404, detail="Fotoğraf bulunamadı.")
+
+    job = db.query(Job).filter(Job.id == job_id).first()
+    
+    old_category = photo.category
+    new_category = CATEGORY_REJECTED if old_category == CATEGORY_SELECTED else CATEGORY_SELECTED
+    
+    old_path = RUNS_DIR / job_id / "output" / old_category / photo.filename
+    new_dir = RUNS_DIR / job_id / "output" / new_category
+    new_path = new_dir / photo.filename
+    
+    if old_path.exists():
+        new_dir.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(old_path), str(new_path))
+        
+    photo.category = new_category
+    if new_category == CATEGORY_SELECTED:
+        job.selected_count += 1
+        job.rejected_count -= 1
+    else:
+        job.selected_count -= 1
+        job.rejected_count += 1
+        
+    db.commit()
+    
+    return {"status": "success", "new_category": new_category}
 
 
 @app.get("/download/{job_id}/{download_type}", name="download_result", response_model=None)
@@ -158,6 +208,13 @@ async def download_result(request: Request, job_id: str, download_type: str):
             },
             status_code=404,
         )
+
+    if download_type in ["selected", "rejected"]:
+        job_dir = RUNS_DIR / job_id
+        output_dir = job_dir / "output"
+        zips_dir = output_dir / "zips"
+        zips_dir.mkdir(parents=True, exist_ok=True)
+        _create_result_zips(output_dir, zips_dir)
 
     file_map = {
         "selected": RUNS_DIR / job_id / "output" / "zips" / "selected.zip",
@@ -333,6 +390,7 @@ def _run_culling_job(
     unsupported_count: int,
     base_url: str,
 ) -> None:
+    db = SessionLocal()
     try:
         result = process_culling(
             input_dir=input_dir,
@@ -340,56 +398,37 @@ def _run_culling_job(
             logger=print,
             initial_skipped_count=unsupported_count,
         )
-        zip_paths = _create_result_zips(output_dir, zips_dir)
-        _notify_n8n(base_url, job_id, result, zip_paths, input_dir, output_dir)
+        _create_result_zips(output_dir, zips_dir)
+        _notify_n8n(base_url, job_id, result, zip_paths={}, input_dir=input_dir, output_dir=output_dir)
 
-        _set_job_state(
-            job_id,
-            {
-                "status": "completed",
-                "message": "Fotoğraflarınız hazır. En iyi kareler seçildi, gereksizler elendi.",
-                "summary": result.summary,
-                "selected_items": _build_result_items(result.records, CATEGORY_SELECTED),
-                "rejected_items": _build_result_items(result.records, CATEGORY_REJECTED),
-                "error": "",
-            },
-        )
+        job = db.query(Job).filter(Job.id == job_id).first()
+        job.status = "completed"
+        job.message = "Fotoğraflarınız hazır. En iyi kareler seçildi, gereksizler elendi."
+        job.selected_count = result.summary.selected
+        job.rejected_count = result.summary.rejected
+        job.skipped_count = result.summary.skipped
+        
+        for record in result.records:
+            photo = PhotoResult(
+                job_id=job_id,
+                filename=record["filename"],
+                category=record["category"],
+                final_score=record["final_score"],
+                reason=record["reason"],
+                relative_path=f"{record['category']}/{record['filename']}"
+            )
+            db.add(photo)
+        
+        db.commit()
     except Exception as exc:
         print(f"Arka plan işlemi başarısız oldu: {exc}")
-        _set_job_state(
-            job_id,
-            {
-                "status": "failed",
-                "message": "İşlem tamamlanamadı.",
-                "summary": None,
-                "selected_items": [],
-                "rejected_items": [],
-                "error": "Fotoğraflar işlenirken beklenmeyen bir hata oluştu.",
-            },
-        )
-
-
-def _build_result_items(records: list[dict[str, Any]], category: str) -> list[dict[str, Any]]:
-    items = [
-        {
-            "filename": record["filename"],
-            "final_score": record["final_score"],
-            "reason": record["reason"],
-        }
-        for record in records
-        if record["category"] == category
-    ]
-    return sorted(items, key=lambda item: item["final_score"], reverse=True)
-
-
-def _set_job_state(job_id: str, state: dict[str, Any]) -> None:
-    with JOBS_LOCK:
-        JOBS[job_id] = state
-
-
-def _get_job_state(job_id: str) -> dict[str, Any] | None:
-    with JOBS_LOCK:
-        return JOBS.get(job_id)
+        job = db.query(Job).filter(Job.id == job_id).first()
+        if job:
+            job.status = "failed"
+            job.message = f"İşlem tamamlanamadı: {str(exc)}"
+            db.commit()
+    finally:
+        db.close()
 
 
 def _render_index_error(request: Request, message: str) -> HTMLResponse:

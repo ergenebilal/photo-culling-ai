@@ -3,120 +3,135 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>AI Fotoğraf Ayıklama Sistemi</title>
+    <title>AI Fotoğraf Ayıklama Sistemi | Ergene AI</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      body { font-family: 'Inter', sans-serif; }
+      .glass { background: rgba(17, 17, 17, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
+      .hero-gradient { background: radial-gradient(circle at top right, rgba(255,255,255,0.05) 0%, transparent 50%); }
+    </style>
   </head>
-  <body class="min-h-screen bg-[#050505] text-white antialiased">
-    <main class="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-5 py-6 sm:px-8 lg:px-10">
-      <header class="flex items-center justify-between border-b border-[#2A2A2A] pb-6">
-        <a href="https://ergeneai.com" target="_blank" rel="noopener noreferrer" class="flex items-center gap-4">
-          <img src="/static/ergene-ai-logo.png" alt="Ergene Ai logosu" class="h-14 w-14 object-cover shadow-lg shadow-black/40 sm:h-16 sm:w-16" />
+  <body class="min-h-screen bg-[#050505] text-[#e5e5e5] antialiased hero-gradient">
+    <main class="mx-auto max-w-7xl px-6 py-12 lg:px-8">
+      <!-- Header -->
+      <header class="flex items-center justify-between border-b border-white/5 pb-12">
+        <a href="https://ergeneai.com" target="_blank" rel="noopener noreferrer" class="flex items-center gap-6 group">
+          <div class="p-3 bg-[#111] border border-white/10 rounded-2xl group-hover:border-white/20 transition-all">
+            <img src="/static/ergene-ai-logo.png" alt="Logo" class="h-12 w-12 grayscale group-hover:grayscale-0 transition-all">
+          </div>
           <div>
-            <p class="text-sm font-medium uppercase tracking-[0.24em] text-[#A3A3A3]">photo-culling-ai</p>
-            <p class="mt-1 text-lg font-semibold tracking-tight text-white">Ergene Ai</p>
+            <nav class="text-xs font-medium uppercase tracking-widest text-white/40 mb-1">Ergene AI Lab</nav>
+            <p class="text-xl font-bold tracking-tight text-white">Photo Culling AI</p>
           </div>
         </a>
-        <div class="hidden border border-[#2A2A2A] bg-[#111111] px-4 py-2 text-sm text-[#A3A3A3] sm:block">
-          Yerel ve güvenli
+        <div class="hidden md:flex items-center gap-2 px-4 py-2 rounded-full border border-white/5 bg-white/5 text-[10px] uppercase tracking-widest text-white/40 font-bold">
+            <span class="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
+            Yerel ve Güvenli Analiz
         </div>
       </header>
 
-      <section class="grid flex-1 items-center gap-10 py-12 lg:grid-cols-[1fr_460px] lg:py-20">
-        <div class="max-w-3xl">
-          <a href="https://ergeneai.com" target="_blank" rel="noopener noreferrer" class="mb-8 inline-block border border-[#2A2A2A] bg-[#111111] p-3 shadow-2xl shadow-black/40">
-            <img src="/static/ergene-ai-logo.png" alt="Ergene Ai logosu" class="h-24 w-24 object-cover sm:h-32 sm:w-32" />
-          </a>
-          <h1 class="text-4xl font-semibold leading-tight tracking-tight sm:text-6xl">
-            AI Fotoğraf Ayıklama Sistemi
-          </h1>
-          <p class="mt-6 max-w-2xl text-lg leading-8 text-[#A3A3A3] sm:text-xl">
-            Yüzlerce fotoğrafı analiz eder, en iyi kareleri ön seçer ve benzer tekrarları otomatik ayırır.
-          </p>
+      <section class="grid grid-cols-1 lg:grid-cols-2 gap-20 py-24 items-center">
+        <!-- Hero Content -->
+        <div class="space-y-10">
+          <div class="space-y-6">
+            <h1 class="text-5xl lg:text-7xl font-bold tracking-tight text-white leading-[1.1]">
+                Fotoğraflarını <br> <span class="text-white/40">Yapay Zeka</span> <br> İle Ayıkla.
+            </h1>
+            <p class="max-w-xl text-lg text-white/50 leading-relaxed">
+                Yüzlerce fotoğrafı saniyeler içinde analiz et. Net olmayan, kapalı gözlü veya tekrar eden kareleri otomatik ayırarak iş yükünü %80 azalt.
+            </p>
+          </div>
 
-          <div class="mt-10 grid gap-4 sm:grid-cols-3">
-            <div class="border border-[#2A2A2A] bg-[#111111] p-5">
-              <p class="text-base font-semibold text-white">Netlik Analizi</p>
-              <p class="mt-3 text-sm leading-6 text-[#A3A3A3]">Bulanık kareleri ilk elemede ayırmaya yardımcı olur.</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="glass p-6 rounded-2xl">
+              <h3 class="text-sm font-bold text-white mb-2">Netlik Analizi</h3>
+              <p class="text-xs text-white/40 leading-relaxed">Bulanık ve focus hatası olan kareleri anında tespit eder.</p>
             </div>
-            <div class="border border-[#2A2A2A] bg-[#111111] p-5">
-              <p class="text-base font-semibold text-white">Benzer Kare Ayırma</p>
-              <p class="mt-3 text-sm leading-6 text-[#A3A3A3]">Tekrar eden karelerde en iyi sonucu öne çıkarır.</p>
-            </div>
-            <div class="border border-[#2A2A2A] bg-[#111111] p-5">
-              <p class="text-base font-semibold text-white">Hızlı ZIP Çıktısı</p>
-              <p class="mt-3 text-sm leading-6 text-[#A3A3A3]">Sonuçları indirmeye hazır klasörler halinde sunar.</p>
+            <div class="glass p-6 rounded-2xl">
+              <h3 class="text-sm font-bold text-white mb-2">Benzerlik Kontrolü</h3>
+              <p class="text-xs text-white/40 leading-relaxed">Birbirine çok benzeyen kareler arasından en iyisini seçer.</p>
             </div>
           </div>
         </div>
 
-        <form
-          action="/process"
-          method="post"
-          enctype="multipart/form-data"
-          class="border border-[#2A2A2A] bg-[#111111] p-6 shadow-2xl shadow-black/30 sm:p-8"
-        >
-          <div class="mb-7">
-            <h2 class="text-2xl font-semibold tracking-tight">Fotoğrafları Yükle</h2>
-            <p class="mt-3 text-sm leading-6 text-[#A3A3A3]">
-              Fotoğraf klasörünüzü seçin veya görselleri yükleyin.
-            </p>
-          </div>
+        <!-- Upload Form -->
+        <div class="relative">
+            <div class="absolute -inset-1 bg-gradient-to-r from-white/10 to-transparent blur-2xl opacity-20"></div>
+            <form
+              action="/process"
+              method="post"
+              enctype="multipart/form-data"
+              class="relative glass p-8 sm:p-12 rounded-[2.5rem] shadow-2xl space-y-8"
+            >
+              <div>
+                <h2 class="text-2xl font-bold text-white mb-2">Yüklemeyi Başlat</h2>
+                <p class="text-sm text-white/40">Fotoğraf klasörünü veya tekil dosyaları seçin.</p>
+              </div>
 
-          {% if error %}
-            <div class="mb-5 border border-red-900/60 bg-red-950/40 px-4 py-3 text-sm text-red-200">
-              {{ error }}
-            </div>
-          {% endif %}
+              {% if error %}
+                <div class="p-4 rounded-xl border border-red-500/20 bg-red-500/10 text-xs text-red-200">
+                  {{ error }}
+                </div>
+              {% endif %}
 
-          <label class="block cursor-pointer border border-dashed border-[#3A3A3A] bg-[#151515] px-5 py-7 text-center transition hover:border-white hover:bg-[#1A1A1A]">
-            <span class="block text-base font-medium text-white">Görselleri seç</span>
-            <span class="mt-2 block text-sm text-[#A3A3A3]">RAW başta olmak üzere JPG, JPEG, PNG veya WEBP dosyalarını birlikte seçebilirsiniz.</span>
-            <input
-              class="mt-5 w-full text-sm text-[#A3A3A3] file:mr-4 file:border-0 file:bg-white file:px-4 file:py-2 file:text-sm file:font-semibold file:text-black hover:file:bg-neutral-200"
-              type="file"
-              name="files"
-              multiple
-            />
-          </label>
+              <div class="space-y-4">
+                  <label class="group relative block cursor-pointer">
+                    <div class="flex flex-col items-center justify-center p-8 border-2 border-dashed border-white/5 rounded-3xl bg-white/5 group-hover:border-white/20 group-hover:bg-white/10 transition-all duration-300">
+                        <svg class="w-8 h-8 text-white/20 mb-4 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                        <span class="text-sm font-bold text-white">Görselleri Seç</span>
+                        <span class="text-[10px] text-white/30 mt-1">JPG, PNG, RAW, WEBP</span>
+                        <input class="hidden" type="file" name="files" multiple onchange="updateLabel(this, 'file-label')" />
+                    </div>
+                    <div id="file-label" class="mt-2 text-[10px] text-center text-white/20 truncate"></div>
+                  </label>
 
-          <label class="mt-4 block cursor-pointer border border-dashed border-[#3A3A3A] bg-[#151515] px-5 py-7 text-center transition hover:border-white hover:bg-[#1A1A1A]">
-            <span class="block text-base font-medium text-white">Klasör seç</span>
-            <span class="mt-2 block text-sm text-[#A3A3A3]">Klasördeki desteklenen fotoğraflar otomatik işlenir.</span>
-            <input
-              class="mt-5 w-full text-sm text-[#A3A3A3] file:mr-4 file:border-0 file:bg-white file:px-4 file:py-2 file:text-sm file:font-semibold file:text-black hover:file:bg-neutral-200"
-              type="file"
-              name="files"
-              multiple
-              webkitdirectory
-              directory
-            />
-          </label>
+                  <div class="flex items-center gap-4 py-2">
+                      <div class="h-px bg-white/5 flex-1"></div>
+                      <span class="text-[10px] font-bold text-white/20 uppercase tracking-widest">Veya</span>
+                      <div class="h-px bg-white/5 flex-1"></div>
+                  </div>
 
-          <button
-            type="submit"
-            class="mt-7 w-full bg-white px-5 py-4 text-sm font-semibold uppercase tracking-[0.16em] text-black transition hover:bg-neutral-200"
-          >
-            Ayıklamayı Başlat
-          </button>
+                  <label class="group block cursor-pointer py-4 px-6 border border-white/5 rounded-2xl bg-white/5 hover:bg-white/10 transition-all">
+                    <div class="flex items-center gap-4">
+                        <svg class="w-5 h-5 text-white/20 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                        <span class="text-sm font-medium text-white/60 group-hover:text-white">Klasör Olarak Yükle</span>
+                        <input class="hidden" type="file" name="files" multiple webkitdirectory directory onchange="updateLabel(this, 'folder-label')" />
+                    </div>
+                    <div id="folder-label" class="mt-2 text-[10px] text-white/20 truncate"></div>
+                  </label>
+              </div>
 
-          <p class="mt-5 text-xs leading-5 text-[#A3A3A3]">
-            İlk eleme süresini azaltır; nihai profesyonel seçim sizde kalır.
-          </p>
-        </form>
+              <button
+                type="submit"
+                class="w-full py-5 rounded-2xl bg-white text-black text-sm font-bold uppercase tracking-widest hover:bg-neutral-200 transition-all shadow-xl shadow-white/5"
+              >
+                Analizi Başlat
+              </button>
+            </form>
+        </div>
       </section>
 
-      <footer class="border-t border-[#2A2A2A] py-8 text-center">
-        <img src="/static/ergene-ai-logo.png" alt="Ergene Ai logosu" class="mx-auto mb-5 h-20 w-20 object-cover shadow-xl shadow-black/40" />
-        <p class="text-xs uppercase tracking-[0.28em] text-[#A3A3A3]">Bu bir Ergene Ai ürünüdür.</p>
-        <a
-          href="https://ergeneai.com"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="mt-3 inline-block text-2xl font-semibold tracking-tight text-white transition hover:text-neutral-300 sm:text-3xl"
-        >
-          ergeneai.com
-        </a>
+      <!-- Footer -->
+      <footer class="mt-32 pt-12 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-8">
+        <div class="text-center md:text-left">
+            <p class="text-xs font-bold uppercase tracking-widest text-white/20">A Product of Ergene AI</p>
+            <p class="text-sm text-white/40 mt-2">Nihai profesyonel seçim sizde kalır, biz sadece zaman kazandırırız.</p>
+        </div>
+        <div class="flex items-center gap-8">
+            <a href="https://ergeneai.com" target="_blank" class="text-2xl font-bold tracking-tighter text-white/20 hover:text-white transition-colors">ergeneai.com</a>
+        </div>
       </footer>
     </main>
+
+    <script>
+      function updateLabel(input, labelId) {
+        const label = document.getElementById(labelId);
+        if (input.files.length > 0) {
+          label.textContent = `${input.files.length} dosya seçildi.`;
+        }
+      }
+    </script>
   </body>
 </html>
+

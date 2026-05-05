@@ -3,149 +3,167 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Ayıklama Sonuçları</title>
+    <title>Ayıklama Sonuçları | Ergene AI</title>
     {% if job_status == "processing" %}
       <meta http-equiv="refresh" content="5; url=/result/{{ job_id }}" />
     {% endif %}
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      body { font-family: 'Inter', sans-serif; }
+      .glass { background: rgba(17, 17, 17, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
+      .photo-card:hover .overlay { opacity: 1; }
+      .loader-bar { height: 2px; width: 100%; background: #1a1a1a; position: relative; overflow: hidden; }
+      .loader-bar::after { content: ''; position: absolute; left: -50%; height: 100%; width: 50%; background: #fff; animation: loading 1.5s infinite; }
+      @keyframes loading { from { left: -50%; } to { left: 100%; } }
+    </style>
   </head>
-  <body class="min-h-screen bg-[#050505] text-white antialiased">
-    <main class="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-5 py-6 sm:px-8 lg:px-10">
-      <header class="flex flex-col gap-5 border-b border-[#2A2A2A] pb-6 sm:flex-row sm:items-end sm:justify-between">
-        <div class="flex flex-col gap-5 sm:flex-row sm:items-center">
-          <a href="https://ergeneai.com" target="_blank" rel="noopener noreferrer" class="border border-[#2A2A2A] bg-[#111111] p-2 shadow-xl shadow-black/40">
-            <img src="/static/ergene-ai-logo.png" alt="Ergene Ai logosu" class="h-20 w-20 object-cover sm:h-24 sm:w-24" />
-          </a>
+  <body class="min-h-screen bg-[#050505] text-[#e5e5e5] antialiased">
+    <div class="fixed top-0 left-0 w-full z-50">
+        {% if job_status == "processing" %}
+            <div class="loader-bar"></div>
+        {% endif %}
+    </div>
+
+    <main class="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+      <!-- Header -->
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-8 border-b border-white/5 pb-12">
+        <div class="flex items-center gap-6">
+          <div class="p-3 bg-[#111] border border-white/10 rounded-2xl">
+            <img src="/static/ergene-ai-logo.png" alt="Logo" class="h-16 w-16 grayscale">
+          </div>
           <div>
-            <p class="text-sm font-medium uppercase tracking-[0.24em] text-[#A3A3A3]">photo-culling-ai</p>
-            <h1 class="mt-4 text-4xl font-semibold tracking-tight sm:text-6xl">
-              {% if job_status == "processing" %}
-                İşlem Başladı
-              {% elif job_status == "failed" %}
-                İşlem Tamamlanamadı
-              {% else %}
-                Ayıklama Tamamlandı
-              {% endif %}
+            <nav class="text-xs font-medium uppercase tracking-widest text-white/40 mb-2">Photo Culling AI</nav>
+            <h1 class="text-4xl font-bold tracking-tight text-white">
+                {% if job_status == "processing" %}Analiz Sürüyor...{% else %}Ayıklama Sonuçları{% endif %}
             </h1>
           </div>
         </div>
-        <a href="/" class="inline-flex items-center justify-center border border-[#2A2A2A] bg-[#111111] px-5 py-3 text-sm font-medium text-white transition hover:border-white hover:bg-[#151515]">
-          Yeni İşlem Başlat
-        </a>
-      </header>
+        <div class="flex gap-4">
+            <a href="/" class="px-6 py-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition-all text-sm font-medium">Yeni Yükleme</a>
+            {% if job_status == "completed" %}
+                <a href="/download/{{ job_id }}/selected" class="px-6 py-3 rounded-xl bg-white text-black hover:bg-white/90 transition-all text-sm font-bold shadow-lg shadow-white/10">Seçilenleri İndir</a>
+            {% endif %}
+        </div>
+      </div>
 
       {% if job_status == "processing" %}
-        <section class="my-10 border border-[#2A2A2A] bg-[#111111] p-8">
-          <p class="text-2xl font-semibold">Fotoğraflar arka planda analiz ediliyor.</p>
-          <p class="mt-4 max-w-2xl text-sm leading-6 text-[#A3A3A3]">
-            {{ message }} Bu sayfa birkaç saniyede bir otomatik yenilenir. 600+ fotoğraflık işlerde sayfayı açık bırakabilirsiniz.
-          </p>
-          <div class="mt-8 h-2 w-full overflow-hidden bg-[#151515]">
-            <div class="h-full w-1/2 animate-pulse bg-white"></div>
-          </div>
-        </section>
-      {% elif job_status == "failed" %}
-        <section class="my-10 border border-red-900/60 bg-red-950/30 p-8">
-          <p class="text-2xl font-semibold">İşlem tamamlanamadı.</p>
-          <p class="mt-4 max-w-2xl text-sm leading-6 text-red-100">{{ error }}</p>
-        </section>
-      {% else %}
-        <section class="py-10">
-          <p class="max-w-3xl text-lg leading-8 text-[#A3A3A3] sm:text-xl">
-            {{ message }}
-          </p>
-        </section>
-
-        <section class="grid gap-4 sm:grid-cols-3">
-          <div class="border border-[#2A2A2A] bg-[#111111] p-6">
-            <p class="text-sm text-[#A3A3A3]">Toplam Fotoğraf</p>
-            <p class="mt-4 text-5xl font-semibold">{{ summary.total }}</p>
-          </div>
-          <div class="border border-[#2A2A2A] bg-[#111111] p-6">
-            <p class="text-sm text-[#A3A3A3]">Seçilen</p>
-            <p class="mt-4 text-5xl font-semibold">{{ summary.selected }}</p>
-          </div>
-          <div class="border border-[#2A2A2A] bg-[#111111] p-6">
-            <p class="text-sm text-[#A3A3A3]">Elenen</p>
-            <p class="mt-4 text-5xl font-semibold">{{ summary.rejected }}</p>
-          </div>
-        </section>
-
-        {% if summary.skipped > 0 %}
-          <section class="mt-4 border border-[#2A2A2A] bg-[#111111] p-5">
-            <p class="text-sm text-[#A3A3A3]">Hatalı/Atlanan</p>
-            <p class="mt-2 text-2xl font-semibold">{{ summary.skipped }}</p>
-          </section>
-        {% endif %}
-
-        <section class="mt-8 border border-[#2A2A2A] bg-[#111111] p-6 sm:p-8">
-          <div>
-            <h2 class="text-2xl font-semibold">İndirme</h2>
-            <p class="mt-3 text-sm leading-6 text-[#A3A3A3]">Seçilen en iyi fotoğrafları ve elenenleri ayrı ayrı indirebilirsiniz.</p>
-          </div>
-
-          <div class="mt-7 grid gap-3 sm:grid-cols-2">
-            {% if summary.selected > 0 %}
-              <a class="border border-white bg-white px-5 py-4 text-center text-sm font-semibold text-black transition hover:bg-neutral-200" href="/download/{{ job_id }}/selected">Seçilen Fotoğrafları İndir</a>
-            {% endif %}
-            {% if summary.rejected > 0 %}
-              <a class="border border-[#3A3A3A] bg-[#151515] px-5 py-4 text-center text-sm font-semibold text-white transition hover:border-white hover:bg-[#1A1A1A]" href="/download/{{ job_id }}/rejected">Elenen Fotoğrafları İndir</a>
-            {% endif %}
-          </div>
-
-          {% if summary.selected == 0 and summary.rejected == 0 %}
-            <p class="mt-6 text-sm leading-6 text-[#A3A3A3]">
-              İndirilebilir fotoğraf bulunamadı. Yüklenen dosyalar hatalı, desteklenmeyen veya işlenemeyen görseller olabilir.
-            </p>
-          {% endif %}
-        </section>
-
-        <section class="mt-8 grid gap-4 lg:grid-cols-2">
-          <div class="border border-[#2A2A2A] bg-[#111111] p-6">
-            <h2 class="text-xl font-semibold">Seçilenlerden Örnekler</h2>
-            <div class="mt-5 space-y-3">
-              {% for item in selected_items[:8] %}
-                <div class="border border-[#2A2A2A] bg-[#151515] p-4">
-                  <p class="font-medium text-white">{{ item.filename }}</p>
-                  <p class="mt-1 text-sm text-[#A3A3A3]">Skor: {{ item.final_score }}</p>
-                </div>
-              {% else %}
-                <p class="text-sm text-[#A3A3A3]">Seçilen fotoğraf yok.</p>
-              {% endfor %}
+      <!-- Processing State -->
+      <div class="mt-16 text-center max-w-2xl mx-auto py-20 border border-white/5 rounded-3xl bg-[#0a0a0a]">
+        <div class="mb-8 inline-flex p-4 rounded-full bg-white/5 animate-pulse">
+            <svg class="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+        </div>
+        <h2 class="text-2xl font-semibold text-white mb-4">Analiz devam ediyor</h2>
+        <p class="text-white/50 mb-8">{{ message }}</p>
+        <div class="flex justify-center gap-8">
+            <div class="text-center">
+                <span class="block text-3xl font-bold text-white">{{ summary.total }}</span>
+                <span class="text-xs text-white/30 uppercase tracking-widest">Toplam Görsel</span>
             </div>
-          </div>
-          <div class="border border-[#2A2A2A] bg-[#111111] p-6">
-            <h2 class="text-xl font-semibold">Elenenlerden Örnekler</h2>
-            <div class="mt-5 space-y-3">
-              {% for item in rejected_items[:8] %}
-                <div class="border border-[#2A2A2A] bg-[#151515] p-4">
-                  <p class="font-medium text-white">{{ item.filename }}</p>
-                  <p class="mt-1 text-sm text-[#A3A3A3]">Skor: {{ item.final_score }}</p>
-                </div>
-              {% else %}
-                <p class="text-sm text-[#A3A3A3]">Elenen fotoğraf yok.</p>
-              {% endfor %}
+            <div class="w-px h-12 bg-white/10"></div>
+            <div class="text-center">
+                <span class="block text-3xl font-bold text-white/20">--</span>
+                <span class="text-xs text-white/30 uppercase tracking-widest">Kalan Tahmini</span>
             </div>
-          </div>
+        </div>
+      </div>
+
+      {% elif job_status == "completed" %}
+      <!-- Dashboard -->
+      <div class="mt-12 grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="glass p-6 rounded-2xl">
+          <span class="text-xs font-medium text-white/40 uppercase tracking-widest">Toplam</span>
+          <p class="text-4xl font-bold mt-2">{{ summary.total }}</p>
+        </div>
+        <div class="glass p-6 rounded-2xl border-l-4 border-green-500/50">
+          <span class="text-xs font-medium text-white/40 uppercase tracking-widest">Seçilenler</span>
+          <p class="text-4xl font-bold mt-2">{{ summary.selected }}</p>
+        </div>
+        <div class="glass p-6 rounded-2xl border-l-4 border-red-500/50">
+          <span class="text-xs font-medium text-white/40 uppercase tracking-widest">Elenenler</span>
+          <p class="text-4xl font-bold mt-2">{{ summary.rejected }}</p>
+        </div>
+        <div class="glass p-6 rounded-2xl">
+          <span class="text-xs font-medium text-white/40 uppercase tracking-widest">Hatalı</span>
+          <p class="text-4xl font-bold mt-2 text-white/20">{{ summary.skipped }}</p>
+        </div>
+      </div>
+
+      <!-- Gallery -->
+      <div class="mt-16 space-y-20">
+        <!-- Selected Section -->
+        <section>
+            <div class="flex items-center justify-between mb-8">
+                <h3 class="text-2xl font-bold flex items-center gap-3">
+                    <span class="w-2 h-8 bg-green-500 rounded-full"></span>
+                    En İyi Kareler
+                </h3>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                {% for photo in selected_items %}
+                <div id="photo-{{ photo.id }}" class="photo-card relative group rounded-2xl overflow-hidden bg-[#111] border border-white/5 aspect-square">
+                    <img src="/runs/{{ job_id }}/output/{{ photo.category }}/{{ photo.filename }}" alt="{{ photo.filename }}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110">
+                    <div class="overlay absolute inset-0 bg-black/60 opacity-0 transition-all duration-300 flex flex-col justify-end p-4">
+                        <p class="text-xs font-bold text-white mb-1">Skor: {{ photo.final_score }}</p>
+                        <p class="text-[10px] text-white/60 mb-4 line-clamp-2">{{ photo.reason }}</p>
+                        <button onclick="togglePhoto('{{ job_id }}', {{ photo.id }})" class="w-full py-2 bg-white text-black text-xs font-bold rounded-lg hover:bg-neutral-200 transition-colors">Elenenlere Taşı</button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
         </section>
+
+        <!-- Rejected Section -->
+        <section class="opacity-80 hover:opacity-100 transition-opacity">
+            <div class="flex items-center justify-between mb-8">
+                <h3 class="text-2xl font-bold flex items-center gap-3 text-white/50">
+                    <span class="w-2 h-8 bg-white/10 rounded-full"></span>
+                    Elenen Kareler
+                </h3>
+                <a href="/download/{{ job_id }}/rejected" class="text-xs font-medium text-white/40 hover:text-white underline underline-offset-4">Elenenleri İndir</a>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                {% for photo in rejected_items %}
+                <div id="photo-{{ photo.id }}" class="photo-card relative group rounded-xl overflow-hidden bg-[#111] border border-white/5 aspect-square">
+                    <img src="/runs/{{ job_id }}/output/{{ photo.category }}/{{ photo.filename }}" alt="{{ photo.filename }}" class="w-full h-full object-cover opacity-40 group-hover:opacity-100 transition-all">
+                    <div class="overlay absolute inset-0 bg-black/80 opacity-0 transition-all duration-300 flex flex-col justify-center items-center p-2">
+                        <button onclick="togglePhoto('{{ job_id }}', {{ photo.id }})" class="p-2 rounded-full bg-white text-black hover:scale-110 transition-transform">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 1.414L10.586 9H7a1 1 0 100 2h3.586l-1.293 1.293a1 1 0 101.414 1.414l3-3a1 1 0 000-1.414z"></path></svg>
+                        </button>
+                        <p class="text-[8px] text-white/60 mt-2 text-center">{{ photo.reason }}</p>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+      </div>
       {% endif %}
 
-      <p class="mt-8 max-w-2xl text-sm leading-6 text-[#A3A3A3]">
-        Bu sistem nihai profesyonel seçim yerine ilk eleme süresini azaltmak için tasarlanmıştır.
-      </p>
-
-      <footer class="mt-auto border-t border-[#2A2A2A] py-8 text-center">
-        <img src="/static/ergene-ai-logo.png" alt="Ergene Ai logosu" class="mx-auto mb-5 h-20 w-20 object-cover shadow-xl shadow-black/40" />
-        <p class="text-xs uppercase tracking-[0.28em] text-[#A3A3A3]">Bu bir Ergene Ai ürünüdür.</p>
-        <a
-          href="https://ergeneai.com"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="mt-3 inline-block text-2xl font-semibold tracking-tight text-white transition hover:text-neutral-300 sm:text-3xl"
-        >
-          ergeneai.com
-        </a>
+      <!-- Footer -->
+      <footer class="mt-32 pt-12 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-8">
+        <div class="text-center md:text-left">
+            <p class="text-xs font-bold uppercase tracking-widest text-white/20">Powered by Ergene AI</p>
+            <p class="text-sm text-white/40 mt-2">© 2026 Tüm Hakları Saklıdır.</p>
+        </div>
+        <img src="/static/ergene-ai-logo.png" class="h-8 opacity-20 grayscale">
       </footer>
     </main>
+
+    <script>
+      async function togglePhoto(jobId, photoId) {
+        try {
+          const response = await fetch(`/toggle-photo/${jobId}/${photoId}`, { method: 'POST' });
+          if (response.ok) {
+            // Ticari uygulamalarda sayfa yenilemek yerine DOM manipülasyonu tercih edilir.
+            // Ama şimdilik basitlik için yenileyebiliriz veya kartı taşıyabiliriz.
+            window.location.reload();
+          }
+        } catch (error) {
+          console.error('Hata:', error);
+          alert('İşlem yapılamadı.');
+        }
+      }
+    </script>
   </body>
 </html>
+
