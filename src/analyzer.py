@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from io import BytesIO
 from pathlib import Path
 
 import cv2
@@ -68,14 +69,28 @@ class ImageAnalyzer:
         suffix = image_path.suffix.lower()
 
         if suffix in RAW_IMAGE_EXTENSIONS:
-            with rawpy.imread(str(image_path)) as raw:
-                return raw.postprocess(use_camera_wb=True, no_auto_bright=True)
+            return self._load_raw_preview(image_path)
 
         image = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
         if image is None:
             raise ValueError("Görsel dosyası okunamadı.")
 
         return cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+    def _load_raw_preview(self, image_path: Path) -> np.ndarray:
+        with rawpy.imread(str(image_path)) as raw:
+            try:
+                thumbnail = raw.extract_thumb()
+                if thumbnail.format == rawpy.ThumbFormat.JPEG:
+                    image = Image.open(BytesIO(thumbnail.data)).convert("RGB")
+                    return np.array(image)
+                if thumbnail.format == rawpy.ThumbFormat.BITMAP:
+                    return np.asarray(thumbnail.data, dtype=np.uint8)
+            except (rawpy.LibRawNoThumbnailError, rawpy.LibRawUnsupportedThumbnailError):
+                pass
+
+            # RAW içinde önizleme yoksa analiz akışı bozulmasın diye tam çözümleme yapılır.
+            return raw.postprocess(use_camera_wb=True, no_auto_bright=True)
 
     def _calculate_blur_score(self, gray_image: np.ndarray) -> float:
         variance = cv2.Laplacian(gray_image, cv2.CV_64F).var()

@@ -66,7 +66,7 @@ python main.py --input ./input --output ./output
 Web arayüzünde desteklenen formatlar:
 
 ```text
-.jpg .jpeg .png .webp
+.jpg .jpeg .png .webp .raw .cr2 .cr3 .nef .arw .dng .orf .rw2 .raf .pef .srw
 ```
 
 CLI tarafında desteklenen formatlar:
@@ -75,7 +75,7 @@ CLI tarafında desteklenen formatlar:
 .jpg .jpeg .png .webp .raw .cr2 .cr3 .nef .arw .dng .orf .rw2 .raf .pef .srw
 ```
 
-RAW desteği CLI tarafında deneysel olarak sunulur. RAW dosyaları `rawpy` ile okunur; kamera modeli, dosya yapısı veya RAW varyantına göre bazı dosyalar işlenemeyebilir.
+RAW desteği deneysel olarak sunulur. RAW dosyaları `rawpy` ile tanınır ve hız için dosyanın içindeki gömülü önizleme görseli analiz edilir. RAW içinde önizleme bulunamazsa sistem tam RAW çözümlemeye geri döner; kamera modeli, dosya yapısı veya RAW varyantına göre bazı dosyalar işlenemeyebilir.
 
 ## n8n Entegrasyonu
 
