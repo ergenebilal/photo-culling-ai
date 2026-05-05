@@ -4,6 +4,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Ayıklama Sonuçları</title>
+    {% if job_status == "processing" %}
+      <meta http-equiv="refresh" content="5; url=/result/{{ job_id }}" />
+    {% endif %}
     <script src="https://cdn.tailwindcss.com"></script>
   </head>
   <body class="min-h-screen bg-[#050505] text-white antialiased">
@@ -15,7 +18,15 @@
           </a>
           <div>
             <p class="text-sm font-medium uppercase tracking-[0.24em] text-[#A3A3A3]">photo-culling-ai</p>
-            <h1 class="mt-4 text-4xl font-semibold tracking-tight sm:text-6xl">Ayıklama Tamamlandı</h1>
+            <h1 class="mt-4 text-4xl font-semibold tracking-tight sm:text-6xl">
+              {% if job_status == "processing" %}
+                İşlem Başladı
+              {% elif job_status == "failed" %}
+                İşlem Tamamlanamadı
+              {% else %}
+                Ayıklama Tamamlandı
+              {% endif %}
+            </h1>
           </div>
         </div>
         <a href="/" class="inline-flex items-center justify-center border border-[#2A2A2A] bg-[#111111] px-5 py-3 text-sm font-medium text-white transition hover:border-white hover:bg-[#151515]">
@@ -23,55 +34,101 @@
         </a>
       </header>
 
-      <section class="py-10">
-        <p class="max-w-3xl text-lg leading-8 text-[#A3A3A3] sm:text-xl">
-          İş bitti. En iyi kareler seçildi, gereksiz ve tekrar olanlar elendi.
-        </p>
-      </section>
+      {% if job_status == "processing" %}
+        <section class="my-10 border border-[#2A2A2A] bg-[#111111] p-8">
+          <p class="text-2xl font-semibold">Fotoğraflar arka planda analiz ediliyor.</p>
+          <p class="mt-4 max-w-2xl text-sm leading-6 text-[#A3A3A3]">
+            {{ message }} Bu sayfa birkaç saniyede bir otomatik yenilenir. 600+ fotoğraflık işlerde sayfayı açık bırakabilirsiniz.
+          </p>
+          <div class="mt-8 h-2 w-full overflow-hidden bg-[#151515]">
+            <div class="h-full w-1/2 animate-pulse bg-white"></div>
+          </div>
+        </section>
+      {% elif job_status == "failed" %}
+        <section class="my-10 border border-red-900/60 bg-red-950/30 p-8">
+          <p class="text-2xl font-semibold">İşlem tamamlanamadı.</p>
+          <p class="mt-4 max-w-2xl text-sm leading-6 text-red-100">{{ error }}</p>
+        </section>
+      {% else %}
+        <section class="py-10">
+          <p class="max-w-3xl text-lg leading-8 text-[#A3A3A3] sm:text-xl">
+            {{ message }}
+          </p>
+        </section>
 
-      <section class="grid gap-4 sm:grid-cols-3">
-        <div class="border border-[#2A2A2A] bg-[#111111] p-6">
-          <p class="text-sm text-[#A3A3A3]">Toplam Fotoğraf</p>
-          <p class="mt-4 text-5xl font-semibold">{{ summary.total }}</p>
-        </div>
-        <div class="border border-[#2A2A2A] bg-[#111111] p-6">
-          <p class="text-sm text-[#A3A3A3]">Seçilen</p>
-          <p class="mt-4 text-5xl font-semibold">{{ summary.selected }}</p>
-        </div>
-        <div class="border border-[#2A2A2A] bg-[#111111] p-6">
-          <p class="text-sm text-[#A3A3A3]">Elenen</p>
-          <p class="mt-4 text-5xl font-semibold">{{ summary.rejected }}</p>
-        </div>
-      </section>
+        <section class="grid gap-4 sm:grid-cols-3">
+          <div class="border border-[#2A2A2A] bg-[#111111] p-6">
+            <p class="text-sm text-[#A3A3A3]">Toplam Fotoğraf</p>
+            <p class="mt-4 text-5xl font-semibold">{{ summary.total }}</p>
+          </div>
+          <div class="border border-[#2A2A2A] bg-[#111111] p-6">
+            <p class="text-sm text-[#A3A3A3]">Seçilen</p>
+            <p class="mt-4 text-5xl font-semibold">{{ summary.selected }}</p>
+          </div>
+          <div class="border border-[#2A2A2A] bg-[#111111] p-6">
+            <p class="text-sm text-[#A3A3A3]">Elenen</p>
+            <p class="mt-4 text-5xl font-semibold">{{ summary.rejected }}</p>
+          </div>
+        </section>
 
-      {% if summary.skipped > 0 %}
-        <section class="mt-4 border border-[#2A2A2A] bg-[#111111] p-5">
-          <p class="text-sm text-[#A3A3A3]">Hatalı/Atlanan</p>
-          <p class="mt-2 text-2xl font-semibold">{{ summary.skipped }}</p>
+        {% if summary.skipped > 0 %}
+          <section class="mt-4 border border-[#2A2A2A] bg-[#111111] p-5">
+            <p class="text-sm text-[#A3A3A3]">Hatalı/Atlanan</p>
+            <p class="mt-2 text-2xl font-semibold">{{ summary.skipped }}</p>
+          </section>
+        {% endif %}
+
+        <section class="mt-8 border border-[#2A2A2A] bg-[#111111] p-6 sm:p-8">
+          <div>
+            <h2 class="text-2xl font-semibold">İndirme</h2>
+            <p class="mt-3 text-sm leading-6 text-[#A3A3A3]">Seçilen en iyi fotoğrafları ve elenenleri ayrı ayrı indirebilirsiniz.</p>
+          </div>
+
+          <div class="mt-7 grid gap-3 sm:grid-cols-2">
+            {% if summary.selected > 0 %}
+              <a class="border border-white bg-white px-5 py-4 text-center text-sm font-semibold text-black transition hover:bg-neutral-200" href="/download/{{ job_id }}/selected">Seçilen Fotoğrafları İndir</a>
+            {% endif %}
+            {% if summary.rejected > 0 %}
+              <a class="border border-[#3A3A3A] bg-[#151515] px-5 py-4 text-center text-sm font-semibold text-white transition hover:border-white hover:bg-[#1A1A1A]" href="/download/{{ job_id }}/rejected">Elenen Fotoğrafları İndir</a>
+            {% endif %}
+          </div>
+
+          {% if summary.selected == 0 and summary.rejected == 0 %}
+            <p class="mt-6 text-sm leading-6 text-[#A3A3A3]">
+              İndirilebilir fotoğraf bulunamadı. Yüklenen dosyalar hatalı, desteklenmeyen veya işlenemeyen görseller olabilir.
+            </p>
+          {% endif %}
+        </section>
+
+        <section class="mt-8 grid gap-4 lg:grid-cols-2">
+          <div class="border border-[#2A2A2A] bg-[#111111] p-6">
+            <h2 class="text-xl font-semibold">Seçilenlerden Örnekler</h2>
+            <div class="mt-5 space-y-3">
+              {% for item in selected_items[:8] %}
+                <div class="border border-[#2A2A2A] bg-[#151515] p-4">
+                  <p class="font-medium text-white">{{ item.filename }}</p>
+                  <p class="mt-1 text-sm text-[#A3A3A3]">Skor: {{ item.final_score }}</p>
+                </div>
+              {% else %}
+                <p class="text-sm text-[#A3A3A3]">Seçilen fotoğraf yok.</p>
+              {% endfor %}
+            </div>
+          </div>
+          <div class="border border-[#2A2A2A] bg-[#111111] p-6">
+            <h2 class="text-xl font-semibold">Elenenlerden Örnekler</h2>
+            <div class="mt-5 space-y-3">
+              {% for item in rejected_items[:8] %}
+                <div class="border border-[#2A2A2A] bg-[#151515] p-4">
+                  <p class="font-medium text-white">{{ item.filename }}</p>
+                  <p class="mt-1 text-sm text-[#A3A3A3]">Skor: {{ item.final_score }}</p>
+                </div>
+              {% else %}
+                <p class="text-sm text-[#A3A3A3]">Elenen fotoğraf yok.</p>
+              {% endfor %}
+            </div>
+          </div>
         </section>
       {% endif %}
-
-      <section class="mt-8 border border-[#2A2A2A] bg-[#111111] p-6 sm:p-8">
-        <div>
-          <h2 class="text-2xl font-semibold">İndirme</h2>
-          <p class="mt-3 text-sm leading-6 text-[#A3A3A3]">Seçilen en iyi fotoğrafları ve elenenleri ayrı ayrı indirebilirsiniz.</p>
-        </div>
-
-        <div class="mt-7 grid gap-3 sm:grid-cols-2">
-          {% if summary.selected > 0 %}
-            <a class="border border-white bg-white px-5 py-4 text-center text-sm font-semibold text-black transition hover:bg-neutral-200" href="/download/{{ job_id }}/selected">Seçilen Fotoğrafları İndir</a>
-          {% endif %}
-          {% if summary.rejected > 0 %}
-            <a class="border border-[#3A3A3A] bg-[#151515] px-5 py-4 text-center text-sm font-semibold text-white transition hover:border-white hover:bg-[#1A1A1A]" href="/download/{{ job_id }}/rejected">Elenen Fotoğrafları İndir</a>
-          {% endif %}
-        </div>
-
-        {% if summary.selected == 0 and summary.rejected == 0 %}
-          <p class="mt-6 text-sm leading-6 text-[#A3A3A3]">
-            İndirilebilir fotoğraf bulunamadı. Yüklenen dosyalar hatalı, desteklenmeyen veya işlenemeyen görseller olabilir.
-          </p>
-        {% endif %}
-      </section>
 
       <p class="mt-8 max-w-2xl text-sm leading-6 text-[#A3A3A3]">
         Bu sistem nihai profesyonel seçim yerine ilk eleme süresini azaltmak için tasarlanmıştır.

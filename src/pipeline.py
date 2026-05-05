@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -13,6 +15,7 @@ from src.similarity import mark_similar_groups
 
 
 LogFunction = Callable[[str], None]
+DEFAULT_WORKER_COUNT = max(4, min(os.cpu_count() or 4, 8))
 
 
 @dataclass(frozen=True)
@@ -37,6 +40,7 @@ def process_culling(
     output_dir: Path,
     logger: LogFunction | None = None,
     initial_skipped_count: int = 0,
+    max_workers: int | None = None,
 ) -> CullingResult:
     log = logger or (lambda message: None)
 
@@ -62,40 +66,32 @@ def process_culling(
             json_path=json_path,
         )
 
-    analyzer = ImageAnalyzer()
+    worker_count = max_workers or DEFAULT_WORKER_COUNT
+    log(f"Paralel analiz başlatıldı. İşçi sayısı: {worker_count}")
 
-    for index, image_path in enumerate(image_paths, start=1):
-        log(f"[{index}/{len(image_paths)}] Analiz ediliyor: {image_path.name}")
+    with ProcessPoolExecutor(max_workers=worker_count) as executor:
+        future_map = {
+            executor.submit(_analyze_photo_worker, str(image_path.resolve())): image_path
+            for image_path in image_paths
+        }
 
-        try:
-            analysis = analyzer.analyze(image_path)
-        except Exception as exc:
-            skipped_count += 1
-            log(f"Atlandı: {image_path.name} okunamadı veya analiz edilemedi. Detay: {exc}")
-            continue
+        for completed_count, future in enumerate(as_completed(future_map), start=1):
+            image_path = future_map[future]
+            log(f"[{completed_count}/{len(image_paths)}] Sonuç alındı: {image_path.name}")
 
-        category, reason = classify_photo(analysis)
+            try:
+                result = future.result()
+            except Exception as exc:
+                skipped_count += 1
+                log(f"Atlandı: {image_path.name} işlenirken hata oluştu. Detay: {exc}")
+                continue
 
-        records.append(
-            {
-                "filename": image_path.name,
-                "original_path": str(image_path.resolve()),
-                "source_path": str(image_path.resolve()),
-                "copied_path": "",
-                "category": category,
-                "final_score": analysis.final_score,
-                "blur_score": analysis.blur_score,
-                "brightness_score": analysis.brightness_score,
-                "contrast_score": analysis.contrast_score,
-                "face_count": analysis.face_count,
-                "reason": reason,
-                "image_for_hash": analysis.pil_image,
-                "similarity_group_id": "",
-                "best_in_group": True,
-                "is_duplicate": False,
-                "duplicate_of": "",
-            }
-        )
+            if not result["success"]:
+                skipped_count += 1
+                log(f"Atlandı: {image_path.name} analiz edilemedi. Detay: {result['error']}")
+                continue
+
+            records.append(result["record"])
 
     records = mark_similar_groups(records)
     _copy_records(records, output_dir, log)
@@ -149,3 +145,40 @@ def _copy_records(
             )
         else:
             log(f"Kopyalandı: {record['category']}/{copied_path.name} - {record['reason']}")
+
+
+def _analyze_photo_worker(image_path_text: str) -> dict[str, Any]:
+    image_path = Path(image_path_text)
+
+    try:
+        analyzer = ImageAnalyzer()
+        analysis = analyzer.analyze(image_path)
+        category, reason = classify_photo(analysis)
+        return {
+            "success": True,
+            "record": {
+                "filename": image_path.name,
+                "original_path": str(image_path.resolve()),
+                "source_path": str(image_path.resolve()),
+                "copied_path": "",
+                "category": category,
+                "final_score": analysis.final_score,
+                "blur_score": analysis.blur_score,
+                "brightness_score": analysis.brightness_score,
+                "contrast_score": analysis.contrast_score,
+                "face_count": analysis.face_count,
+                "reason": reason,
+                "image_for_hash": analysis.pil_image,
+                "similarity_group_id": "",
+                "best_in_group": True,
+                "is_duplicate": False,
+                "duplicate_of": "",
+            },
+            "error": "",
+        }
+    except Exception as exc:
+        return {
+            "success": False,
+            "record": None,
+            "error": str(exc),
+        }

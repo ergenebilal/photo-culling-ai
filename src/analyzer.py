@@ -32,6 +32,8 @@ class PhotoAnalysis:
 
 
 class ImageAnalyzer:
+    ANALYSIS_MAX_WIDTH = 1024
+
     def __init__(self) -> None:
         cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
         self.face_detector = cv2.CascadeClassifier(cascade_path)
@@ -40,6 +42,7 @@ class ImageAnalyzer:
 
     def analyze(self, image_path: Path) -> PhotoAnalysis:
         rgb_image = self._load_rgb_image(image_path)
+        rgb_image = self._resize_for_analysis(rgb_image)
         gray_image = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2GRAY)
 
         blur_score = self._calculate_blur_score(gray_image)
@@ -91,6 +94,19 @@ class ImageAnalyzer:
 
             # RAW içinde önizleme yoksa analiz akışı bozulmasın diye tam çözümleme yapılır.
             return raw.postprocess(use_camera_wb=True, no_auto_bright=True)
+
+    def _resize_for_analysis(self, rgb_image: np.ndarray) -> np.ndarray:
+        height, width = rgb_image.shape[:2]
+        if width <= self.ANALYSIS_MAX_WIDTH:
+            return rgb_image
+
+        scale = self.ANALYSIS_MAX_WIDTH / width
+        target_height = max(1, int(height * scale))
+        return cv2.resize(
+            rgb_image,
+            (self.ANALYSIS_MAX_WIDTH, target_height),
+            interpolation=cv2.INTER_AREA,
+        )
 
     def _calculate_blur_score(self, gray_image: np.ndarray) -> float:
         variance = cv2.Laplacian(gray_image, cv2.CV_64F).var()

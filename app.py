@@ -5,10 +5,12 @@ import re
 import uuid
 import zipfile
 from pathlib import Path
+from threading import Lock
+from typing import Any
 
 import requests
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, Request, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -31,6 +33,8 @@ STATIC_DIR = BASE_DIR / "static"
 app = FastAPI(title="AI Fotoğraf Ayıklama Sistemi")
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+JOBS: dict[str, dict[str, Any]] = {}
+JOBS_LOCK = Lock()
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -47,6 +51,7 @@ async def index(request: Request) -> HTMLResponse:
 @app.post("/process", response_class=HTMLResponse)
 async def process_uploads(
     request: Request,
+    background_tasks: BackgroundTasks,
     files: list[UploadFile] | None = File(default=None),
 ) -> HTMLResponse:
     if not files or all(not file.filename for file in files):
@@ -71,22 +76,38 @@ async def process_uploads(
                 "Yüklenen dosyalar arasında desteklenen fotoğraf bulunamadı.",
             )
 
-        result = process_culling(
-            input_dir=input_dir,
-            output_dir=output_dir,
-            logger=print,
-            initial_skipped_count=unsupported_count,
+        _set_job_state(
+            job_id,
+            {
+                "status": "processing",
+                "message": "İşlem başladı. Fotoğraflar arka planda analiz ediliyor.",
+                "summary": None,
+                "selected_items": [],
+                "rejected_items": [],
+                "error": "",
+            },
         )
-
-        zip_paths = _create_result_zips(output_dir, zips_dir)
-        webhook_status = _notify_n8n(request, job_id, result, zip_paths, input_dir, output_dir)
+        background_tasks.add_task(
+            _run_culling_job,
+            job_id,
+            input_dir,
+            output_dir,
+            zips_dir,
+            unsupported_count,
+            str(request.base_url).rstrip("/"),
+        )
 
         return templates.TemplateResponse(
             request,
             "result.html",
             {
                 "job_id": job_id,
-                "summary": result.summary,
+                "job_status": "processing",
+                "message": "İşlem başladı. Fotoğraflar arka planda analiz ediliyor.",
+                "summary": None,
+                "selected_items": [],
+                "rejected_items": [],
+                "error": "",
             },
         )
     except Exception as exc:
@@ -95,6 +116,35 @@ async def process_uploads(
             request,
             "İşlem sırasında beklenmeyen bir hata oluştu. Lütfen dosyaları kontrol edip tekrar deneyin.",
         )
+
+
+@app.get("/result/{job_id}", response_class=HTMLResponse)
+async def result_page(request: Request, job_id: str) -> HTMLResponse:
+    job_state = _get_job_state(job_id)
+
+    if not job_state:
+        return templates.TemplateResponse(
+            request,
+            "index.html",
+            {
+                "error": "İstenen işlem bulunamadı.",
+            },
+            status_code=404,
+        )
+
+    return templates.TemplateResponse(
+        request,
+        "result.html",
+        {
+            "job_id": job_id,
+            "job_status": job_state["status"],
+            "message": job_state["message"],
+            "summary": job_state["summary"],
+            "selected_items": job_state["selected_items"],
+            "rejected_items": job_state["rejected_items"],
+            "error": job_state["error"],
+        },
+    )
 
 
 @app.get("/download/{job_id}/{download_type}", name="download_result", response_model=None)
@@ -230,7 +280,7 @@ def _zip_directory(source_dir: Path, zip_path: Path, root_name: str) -> None:
 
 
 def _notify_n8n(
-    request: Request,
+    base_url: str,
     job_id: str,
     result: CullingResult,
     zip_paths: dict[str, Path],
@@ -260,8 +310,8 @@ def _notify_n8n(
             "report_json": str(result.json_path.resolve()),
         },
         "downloads": {
-            "selected_zip": str(request.url_for("download_result", job_id=job_id, download_type="selected")),
-            "rejected_zip": str(request.url_for("download_result", job_id=job_id, download_type="rejected")),
+            "selected_zip": f"{base_url}/download/{job_id}/selected",
+            "rejected_zip": f"{base_url}/download/{job_id}/rejected",
         },
         "next_step": "OpenAI Vision enhancement can analyze selected and eliminated images.",
     }
@@ -273,6 +323,73 @@ def _notify_n8n(
     except requests.RequestException as exc:
         print(f"Uyarı: n8n bildirimi başarısız oldu ama işlem tamamlandı. Detay: {exc}")
         return "n8n bildirimi başarısız oldu ama işlem tamamlandı"
+
+
+def _run_culling_job(
+    job_id: str,
+    input_dir: Path,
+    output_dir: Path,
+    zips_dir: Path,
+    unsupported_count: int,
+    base_url: str,
+) -> None:
+    try:
+        result = process_culling(
+            input_dir=input_dir,
+            output_dir=output_dir,
+            logger=print,
+            initial_skipped_count=unsupported_count,
+        )
+        zip_paths = _create_result_zips(output_dir, zips_dir)
+        _notify_n8n(base_url, job_id, result, zip_paths, input_dir, output_dir)
+
+        _set_job_state(
+            job_id,
+            {
+                "status": "completed",
+                "message": "Fotoğraflarınız hazır. En iyi kareler seçildi, gereksizler elendi.",
+                "summary": result.summary,
+                "selected_items": _build_result_items(result.records, CATEGORY_SELECTED),
+                "rejected_items": _build_result_items(result.records, CATEGORY_REJECTED),
+                "error": "",
+            },
+        )
+    except Exception as exc:
+        print(f"Arka plan işlemi başarısız oldu: {exc}")
+        _set_job_state(
+            job_id,
+            {
+                "status": "failed",
+                "message": "İşlem tamamlanamadı.",
+                "summary": None,
+                "selected_items": [],
+                "rejected_items": [],
+                "error": "Fotoğraflar işlenirken beklenmeyen bir hata oluştu.",
+            },
+        )
+
+
+def _build_result_items(records: list[dict[str, Any]], category: str) -> list[dict[str, Any]]:
+    items = [
+        {
+            "filename": record["filename"],
+            "final_score": record["final_score"],
+            "reason": record["reason"],
+        }
+        for record in records
+        if record["category"] == category
+    ]
+    return sorted(items, key=lambda item: item["final_score"], reverse=True)
+
+
+def _set_job_state(job_id: str, state: dict[str, Any]) -> None:
+    with JOBS_LOCK:
+        JOBS[job_id] = state
+
+
+def _get_job_state(job_id: str) -> dict[str, Any] | None:
+    with JOBS_LOCK:
+        return JOBS.get(job_id)
 
 
 def _render_index_error(request: Request, message: str) -> HTMLResponse:
