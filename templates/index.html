@@ -4,7 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI Fotoğraf Ayıklama Sistemi | Ergene AI</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="icon" href="/static/ergene-ai-logo.ico" />
+    <script src="/static/js/tailwind.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
       body { font-family: 'Inter', sans-serif; }
@@ -14,7 +15,7 @@
   </head>
   <body class="min-h-screen bg-[#050505] text-[#e5e5e5] antialiased hero-gradient">
     <main class="mx-auto max-w-7xl px-6 py-12 lg:px-8">
-      <!-- Header -->
+      <!-- Üst alan -->
       <header class="flex items-center justify-between border-b border-white/5 pb-12">
         <a href="https://ergeneai.com" target="_blank" rel="noopener noreferrer" class="flex items-center gap-6 group">
           <div class="p-3 bg-[#111] border border-white/10 rounded-2xl group-hover:border-white/20 transition-all">
@@ -32,7 +33,7 @@
       </header>
 
       <section class="grid grid-cols-1 lg:grid-cols-2 gap-20 py-24 items-center">
-        <!-- Hero Content -->
+        <!-- Tanıtım alanı -->
         <div class="space-y-10">
           <div class="space-y-6">
             <h1 class="text-5xl lg:text-7xl font-bold tracking-tight text-white leading-[1.1]">
@@ -53,26 +54,68 @@
               <p class="text-xs text-white/40 leading-relaxed">Birbirine çok benzeyen kareler arasından en iyisini seçer.</p>
             </div>
           </div>
+
+          <section class="glass p-6 rounded-2xl">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <h2 class="text-sm font-bold text-white">AI API Ayarları</h2>
+                <p id="ai-settings-status" class="mt-1 text-xs text-white/40">
+                  {% if ai_settings.has_api_key %}API key kayıtlı: {{ ai_settings.api_key_mask }}{% else %}AI skorlama için API key ekleyin.{% endif %}
+                </p>
+              </div>
+              <label class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-white/40">
+                <input id="ai-enabled-input" type="checkbox" {% if ai_settings.enabled %}checked{% endif %} class="h-4 w-4 accent-white">
+                Aktif
+              </label>
+            </div>
+            <form id="ai-settings-form" class="mt-5 grid gap-3">
+              <input
+                id="ai-api-key-input"
+                type="password"
+                autocomplete="off"
+                placeholder="OpenAI API key"
+                class="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white outline-none transition-all placeholder:text-white/15 focus:border-white/30"
+              >
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <input
+                  id="ai-model-input"
+                  type="text"
+                  value="{{ ai_settings.model }}"
+                  placeholder="gpt-4.1-mini"
+                  class="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white outline-none transition-all placeholder:text-white/15 focus:border-white/30"
+                >
+                <input
+                  id="ai-base-url-input"
+                  type="text"
+                  value="{{ ai_settings.base_url }}"
+                  placeholder="Base URL opsiyonel"
+                  class="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white outline-none transition-all placeholder:text-white/15 focus:border-white/30"
+                >
+              </div>
+              <div class="flex flex-wrap items-center gap-3">
+                <button type="submit" class="rounded-xl bg-white px-5 py-3 text-xs font-bold text-black transition-all hover:bg-neutral-200">AI Ayarlarını Kaydet</button>
+                <button type="button" onclick="clearAIKey()" class="rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-xs font-bold text-white/50 transition-all hover:bg-white/10 hover:text-white">Key Sil</button>
+              </div>
+            </form>
+          </section>
         </div>
 
-        <!-- Upload Form -->
+        <!-- Yükleme alanı -->
         <div class="relative">
             <div class="absolute -inset-1 bg-gradient-to-r from-white/10 to-transparent blur-2xl opacity-20"></div>
-            <form
-              action="/process"
-              method="post"
-              enctype="multipart/form-data"
+            <div
               class="relative glass p-8 sm:p-12 rounded-[2.5rem] shadow-2xl space-y-8"
             >
-              <!-- Local Mode (Professional) -->
+              <!-- Profesyonel yerel klasör modu -->
               <div class="mb-12">
                 <h2 class="text-2xl font-bold text-white mb-2">Yerel Klasör Analizi <span class="ml-2 text-[10px] bg-white/10 text-white px-2 py-1 rounded-full uppercase tracking-widest">Turbo</span></h2>
                 <p class="text-sm text-white/40 mb-6">Bilgisayarınızdaki klasörü kopyalamadan, anında tarayın (1000+ RAW için önerilir).</p>
                 
-                <form action="/process-local" method="post" class="space-y-4">
+                <form id="local-form" action="/process-local" method="post" class="space-y-4">
                     <div class="relative group">
                         <input 
                             type="text" 
+                            id="local-path-input"
                             name="path" 
                             placeholder="Örn: C:\Fotolar\Düğün_Gecesi" 
                             required
@@ -82,7 +125,7 @@
                             type="submit" 
                             class="absolute right-2 top-2 bottom-2 px-6 bg-white text-black text-xs font-bold rounded-xl hover:bg-neutral-200 transition-all"
                         >
-                            Taramayı Başlat
+                            Hedef Klasörü Ayıkla
                         </button>
                     </div>
                 </form>
@@ -105,13 +148,19 @@
                 </div>
               {% endif %}
 
-              <div class="space-y-4">
+              <form
+                id="upload-form"
+                action="/process"
+                method="post"
+                enctype="multipart/form-data"
+                class="space-y-4"
+              >
                   <label class="group relative block cursor-pointer">
                     <div class="flex flex-col items-center justify-center p-8 border-2 border-dashed border-white/5 rounded-3xl bg-white/5 group-hover:border-white/20 group-hover:bg-white/10 transition-all duration-300">
                         <svg class="w-8 h-8 text-white/20 mb-4 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                         <span class="text-sm font-bold text-white">Görselleri Seç</span>
                         <span class="text-[10px] text-white/30 mt-1">JPG, PNG, RAW, WEBP</span>
-                        <input class="hidden" type="file" name="files" multiple onchange="updateLabel(this, 'file-label')" />
+                        <input id="photo-files-input" class="hidden upload-input" type="file" name="files" multiple onchange="updateLabel(this, 'file-label')" />
                     </div>
                     <div id="file-label" class="mt-2 text-[10px] text-center text-white/20 truncate"></div>
                   </label>
@@ -126,23 +175,38 @@
                     <div class="flex items-center gap-4">
                         <svg class="w-5 h-5 text-white/20 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
                         <span class="text-sm font-medium text-white/60 group-hover:text-white">Klasör Olarak Yükle</span>
-                        <input class="hidden" type="file" name="files" multiple webkitdirectory directory onchange="updateLabel(this, 'folder-label')" />
+                        <input id="photo-folder-input" class="hidden upload-input" type="file" name="files" multiple webkitdirectory directory onchange="updateLabel(this, 'folder-label')" />
                     </div>
                     <div id="folder-label" class="mt-2 text-[10px] text-white/20 truncate"></div>
                   </label>
-              </div>
 
               <button
                 type="submit"
-                class="w-full py-5 rounded-2xl bg-white text-black text-sm font-bold uppercase tracking-widest hover:bg-neutral-200 transition-all shadow-xl shadow-white/5"
+                id="submit-btn"
+                class="w-full py-5 rounded-2xl bg-white text-black text-sm font-bold uppercase tracking-widest hover:bg-neutral-200 transition-all shadow-xl shadow-white/5 disabled:opacity-50 disabled:cursor-wait"
               >
-                Analizi Başlat
+                Seçili Görselleri Ayıkla
               </button>
             </form>
+            
+            <!-- Yükleme Overlay (Global) -->
+            <div id="loading-overlay" class="hidden fixed inset-0 bg-black/80 backdrop-blur-lg z-[9999] flex flex-col items-center justify-center space-y-6">
+                <div class="relative">
+                    <div class="w-20 h-20 border-4 border-white/10 border-t-white rounded-full animate-spin"></div>
+                    <div class="absolute inset-0 flex items-center justify-center">
+                        <img src="/static/ergene-ai-logo.png" class="w-8 h-8 opacity-50 grayscale">
+                    </div>
+                </div>
+                <div class="text-center">
+                    <h2 class="text-xl font-bold text-white tracking-tight">Fotoğraflar Hazırlanıyor</h2>
+                    <p class="text-white/40 text-sm mt-2 max-w-xs mx-auto">Yapay zeka analizi öncesi görseller taranıyor. Lütfen bu pencereyi kapatmayın.</p>
+                </div>
+            </div>
+            </div>
         </div>
       </section>
 
-      <!-- Footer -->
+      <!-- Alt bilgi -->
       <footer class="mt-32 pt-12 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-8">
         <div class="text-center md:text-left">
             <p class="text-xs font-bold uppercase tracking-widest text-white/20">A Product of Ergene AI</p>
@@ -161,7 +225,99 @@
           label.textContent = `${input.files.length} dosya seçildi.`;
         }
       }
+
+      // Formlar ayrı ayrı doğrulanır; butonlar doğal HTML submit akışını kullanır.
+      const localForm = document.getElementById('local-form');
+      const uploadForm = document.getElementById('upload-form');
+
+      function showLoading(form) {
+          const overlay = document.getElementById('loading-overlay');
+          if (overlay) overlay.classList.remove('hidden');
+
+          // Aynı formun tekrar tekrar gönderilmesini engeller.
+          const submitBtn = form.querySelector('button[type="submit"]');
+          if (submitBtn) {
+              submitBtn.disabled = true;
+              submitBtn.innerHTML = '<span class="flex items-center justify-center gap-2"><svg class="w-4 h-4 animate-spin" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> İşleniyor...</span>';
+          }
+      }
+
+      if (localForm) {
+        localForm.addEventListener('submit', function(event) {
+          const pathInput = document.getElementById('local-path-input');
+          if (!pathInput || !pathInput.value.trim()) {
+            event.preventDefault();
+            alert('Lütfen analiz edilecek klasör yolunu yazın.');
+            return;
+          }
+          showLoading(localForm);
+        });
+      }
+
+      if (uploadForm) {
+        uploadForm.addEventListener('submit', function(event) {
+          const selectedCount = Array.from(document.querySelectorAll('.upload-input'))
+            .reduce((total, input) => total + input.files.length, 0);
+
+          if (selectedCount === 0) {
+            event.preventDefault();
+            alert('Lütfen en az bir fotoğraf veya klasör seçin.');
+            return;
+          }
+          showLoading(uploadForm);
+        });
+      }
+
+      const aiSettingsForm = document.getElementById('ai-settings-form');
+      const aiStatus = document.getElementById('ai-settings-status');
+
+      function setAIStatus(message) {
+        if (aiStatus) aiStatus.textContent = message;
+      }
+
+      async function saveAISettings(clearApiKey = false) {
+        const apiKeyInput = document.getElementById('ai-api-key-input');
+        const modelInput = document.getElementById('ai-model-input');
+        const baseUrlInput = document.getElementById('ai-base-url-input');
+        const enabledInput = document.getElementById('ai-enabled-input');
+        const payload = {
+          api_key: apiKeyInput && apiKeyInput.value ? apiKeyInput.value : null,
+          model: modelInput ? modelInput.value : null,
+          base_url: baseUrlInput ? baseUrlInput.value : null,
+          enabled: enabledInput ? enabledInput.checked : true,
+          clear_api_key: clearApiKey
+        };
+
+        const response = await fetch('/settings/ai', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.detail || 'AI ayarları kaydedilemedi.');
+        if (apiKeyInput) apiKeyInput.value = '';
+        setAIStatus(result.has_api_key ? `API key kayıtlı: ${result.api_key_mask}` : 'AI skorlama için API key ekleyin.');
+      }
+
+      async function clearAIKey() {
+        try {
+          await saveAISettings(true);
+        } catch (error) {
+          setAIStatus(error.message || 'API key silinemedi.');
+        }
+      }
+
+      if (aiSettingsForm) {
+        aiSettingsForm.addEventListener('submit', async function(event) {
+          event.preventDefault();
+          setAIStatus('AI ayarları kaydediliyor...');
+          try {
+            await saveAISettings(false);
+          } catch (error) {
+            setAIStatus(error.message || 'AI ayarları kaydedilemedi.');
+          }
+        });
+      }
     </script>
   </body>
 </html>
-

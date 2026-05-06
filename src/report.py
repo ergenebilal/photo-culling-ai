@@ -18,9 +18,19 @@ REPORT_COLUMNS = [
     "face_count",
     "reason",
     "similarity_group_id",
+    "similarity_group_size",
     "best_in_group",
     "is_duplicate",
     "duplicate_of",
+    "ai_analysis_candidate",
+    "ai_aesthetic_score",
+    "ai_pose_score",
+    "ai_expression_note",
+    "ai_selection_reason",
+    "ai_recommended",
+    "star_rating",
+    "color_label",
+    "favorite",
 ]
 
 

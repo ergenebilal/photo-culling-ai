@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
+import sys
 
 import cv2
 import numpy as np
@@ -35,10 +36,24 @@ class ImageAnalyzer:
     ANALYSIS_MAX_WIDTH = 1024
 
     def __init__(self) -> None:
-        cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-        self.face_detector = cv2.CascadeClassifier(cascade_path)
-        if self.face_detector.empty():
-            raise RuntimeError("OpenCV yüz tespit modeli yüklenemedi.")
+        self.face_detector = self._load_face_detector()
+
+    def _load_face_detector(self) -> cv2.CascadeClassifier | None:
+        cascade_filename = "haarcascade_frontalface_default.xml"
+        candidate_paths = [
+            Path(cv2.data.haarcascades) / cascade_filename,
+        ]
+
+        if hasattr(sys, "_MEIPASS"):
+            candidate_paths.append(Path(sys._MEIPASS) / "cv2" / "data" / cascade_filename)
+
+        for cascade_path in candidate_paths:
+            detector = cv2.CascadeClassifier(str(cascade_path))
+            if not detector.empty():
+                return detector
+
+        # Yüz modeli bulunamazsa analiz devam eder; yalnızca yüz bonusu uygulanmaz.
+        return None
 
     def analyze(self, image_path: Path, thumbnail_path: Path | None = None) -> PhotoAnalysis:
         rgb_image = self._load_rgb_image(image_path)
@@ -129,6 +144,9 @@ class ImageAnalyzer:
         return round(float(np.clip(score, 0.0, 100.0)), 2)
 
     def _detect_faces(self, gray_image: np.ndarray) -> int:
+        if self.face_detector is None:
+            return 0
+
         faces = self.face_detector.detectMultiScale(
             gray_image,
             scaleFactor=1.1,

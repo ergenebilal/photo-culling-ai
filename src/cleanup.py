@@ -1,8 +1,7 @@
-from __future__ import annotations
-
+import os
 import logging
-import shutil
 import time
+import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
 from threading import Thread
@@ -12,7 +11,10 @@ from src.database import Job, PhotoResult, SessionLocal
 # Ayarlar
 CLEANUP_INTERVAL_SECONDS = 3600  # 1 saatte bir kontrol et
 EXPIRATION_HOURS = 24           # 24 saatten eski işleri sil
-RUNS_DIR = Path(__file__).resolve().parent.parent / "runs"
+
+# AppData altındaki runs dizinini hedefle
+app_data_root = Path(os.getenv("LOCALAPPDATA", str(Path.home()))) / "ErgeneAI"
+RUNS_DIR = app_data_root / "runs"
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("CleanupService")

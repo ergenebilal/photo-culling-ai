@@ -1,63 +1,63 @@
 from __future__ import annotations
 
 import argparse
+import os
+import sys
 from pathlib import Path
 
-from src.pipeline import CullingResult, process_culling
+from src.pipeline import process_culling
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Yerel çalışan fotoğraf ayıklama sistemi."
+        description="Yerel çalışan AI fotoğraf ayıklama sistemi."
     )
     parser.add_argument(
         "--input",
         required=True,
-        type=Path,
         help="Analiz edilecek fotoğrafların bulunduğu klasör.",
     )
     parser.add_argument(
         "--output",
         required=True,
-        type=Path,
-        help="Sonuçların yazılacağı çıktı klasörü.",
+        help="Seçilen ve elenen fotoğrafların yazılacağı çıktı klasörü.",
     )
     return parser.parse_args()
 
 
-def print_summary(
-    result: CullingResult,
-) -> None:
-    print("\nİşlem özeti")
-    print("------------")
-    print(f"Toplam işlenen fotoğraf: {result.summary.total}")
-    print(f"Seçilen sayısı: {result.summary.selected}")
-    print(f"Elenen sayısı: {result.summary.rejected}")
-    print(f"Hatalı/atlanmış dosya sayısı: {result.summary.skipped}")
-    print(f"CSV rapor konumu: {result.csv_path}")
-    print(f"JSON rapor konumu: {result.json_path}")
-
-
 def main() -> int:
     args = parse_args()
-    input_dir: Path = args.input
-    output_dir: Path = args.output
+    input_dir = Path(args.input).expanduser().resolve()
+    output_dir = Path(args.output).expanduser().resolve()
 
     if not input_dir.exists() or not input_dir.is_dir():
-        print(f"Hata: Giriş klasörü bulunamadı: {input_dir}")
+        print(f"Hata: giriş klasörü bulunamadı: {input_dir}")
         return 1
 
-    result = process_culling(input_dir, output_dir, logger=print)
+    print("Fotoğraf ayıklama işlemi başlatıldı.")
+    print(f"Giriş klasörü: {input_dir}")
+    print(f"Çıkış klasörü: {output_dir}")
 
-    if result.summary.total == 0:
-        print_summary(result)
-        print("Desteklenen ve işlenebilir fotoğraf bulunamadı.")
-        return 0
+    result = process_culling(
+        input_dir=input_dir,
+        output_dir=output_dir,
+        logger=print,
+        max_workers=1,
+    )
 
-    print_summary(result)
+    print("\nİşlem tamamlandı.")
+    print(f"Toplam işlenen fotoğraf: {result.summary.total}")
+    print(f"Seçilen fotoğraf sayısı: {result.summary.selected}")
+    print(f"Elenen fotoğraf sayısı: {result.summary.rejected}")
+    print(f"Hatalı/atlanmış dosya sayısı: {result.summary.skipped}")
+    print(f"CSV raporu: {result.csv_path}")
+    print(f"JSON raporu: {result.json_path}")
 
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    exit_code = main()
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(exit_code)

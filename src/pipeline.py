@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import os
+import sys
+import uuid
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -9,7 +12,7 @@ from typing import Any, Callable
 from src.analyzer import ImageAnalyzer
 from src.classifier import classify_photo
 from src.config import CATEGORY_REJECTED, CATEGORY_SELECTED
-from src.file_manager import copy_to_category, ensure_output_directories, find_supported_files
+from src.file_manager import copy_to_category, discover_supported_files, ensure_output_directories
 from src.report import write_reports
 from src.similarity import mark_similar_groups
 
@@ -46,9 +49,9 @@ def process_culling(
     log = logger or (lambda message: None)
 
     ensure_output_directories(output_dir)
-    image_paths = find_supported_files(input_dir)
+    image_paths, discovery_skipped_count = discover_supported_files(input_dir, logger=log)
     records: list[dict[str, Any]] = []
-    skipped_count = initial_skipped_count
+    skipped_count = initial_skipped_count + discovery_skipped_count
 
     log(f"Toplam {len(image_paths)} desteklenen dosya bulundu.")
 
@@ -61,16 +64,51 @@ def process_culling(
                 selected=0,
                 rejected=0,
                 duplicates=0,
-                skipped=0,
+                skipped=initial_skipped_count,
             ),
             csv_path=csv_path,
             json_path=json_path,
         )
 
     worker_count = max_workers or DEFAULT_WORKER_COUNT
-    log(f"Paralel analiz başlatıldı. İşçi sayısı: {worker_count}")
+    if worker_count <= 1:
+        # CLI testleri ve küçük işler için thread havuzu açmadan deterministik analiz yapılır.
+        for completed_count, image_path in enumerate(image_paths, start=1):
+            log(f"[{completed_count}/{len(image_paths)}] Analiz ediliyor: {image_path.name}")
+            t_name = f"{image_path.stem}_{uuid.uuid4().hex[:8]}.jpg"
+            t_path = thumbnail_dir / t_name if thumbnail_dir else None
+            result = _analyze_photo_worker(
+                str(image_path.resolve()),
+                str(t_path.resolve()) if t_path else None,
+            )
 
-    with ProcessPoolExecutor(max_workers=worker_count) as executor:
+            if not result["success"]:
+                skipped_count += 1
+                log(f"Atlandı: {image_path.name} analiz edilemedi. Detay: {result['error']}")
+                continue
+
+            records.append(result["record"])
+
+        records = mark_similar_groups(records)
+        _copy_records(records, output_dir, log)
+        csv_path, json_path = write_reports(records, output_dir)
+        summary = _build_summary(records, skipped_count)
+
+        return CullingResult(
+            records=records,
+            summary=summary,
+            csv_path=csv_path,
+            json_path=json_path,
+        )
+
+    # Windows'ta FastAPI/Uvicorn altında ProcessPoolExecutor sorun çıkarabildiği için (özellikle background tasks içinde)
+    # ve EXE paketlemesinde daha güvenli olduğu için ThreadPoolExecutor tercih edilir.
+    is_windows = sys.platform == "win32"
+    executor_class = ThreadPoolExecutor if (is_windows or _is_frozen_app()) else ProcessPoolExecutor
+    executor_label = "Hızlı thread tabanlı analiz" if is_windows else "Paralel süreç analizi"
+    log(f"{executor_label} başlatıldı. İşçi sayısı: {worker_count}")
+
+    with executor_class(max_workers=worker_count) as executor:
         future_map = {}
         for image_path in image_paths:
             # Thumbnail ismini güvenli hale getir
@@ -114,6 +152,11 @@ def process_culling(
     )
 
 
+def _is_frozen_app() -> bool:
+    # PyInstaller EXE içinde multiprocessing yeni uygulama süreçleri başlatabildiği için thread kullanılır.
+    return bool(getattr(sys, "frozen", False))
+
+
 def _build_summary(records: list[dict[str, Any]], skipped_count: int) -> CullingSummary:
     return CullingSummary(
         total=len(records),
@@ -133,10 +176,6 @@ def _copy_records(
     output_dir: Path,
     log: LogFunction,
 ) -> None:
-    # Runs klasörünün yerini tespit et (kopyalama kararı için)
-    # output_dir: runs/{job_id}/output
-    runs_dir = output_dir.parent.parent
-    
     for record in records:
         source_path = Path(record["source_path"])
         if record["is_duplicate"]:
@@ -145,27 +184,12 @@ def _copy_records(
                 "Fotoğraf benzer/tekrar kare olduğu için elenenler arasına alındı. "
                 f"En iyi eşleşme: {record['duplicate_of']}."
             )
+            record["ai_analysis_candidate"] = False
 
         target_category = record["category"]
-        
-        # Akıllı Kopyalama Kararı:
-        # Sadece SEÇİLENLERİ veya UPLOAD edilen (runs içindeki) dosyaları kopyala.
-        # Yerel klasördeki ELENENLERİ kopyalamıyoruz.
-        should_copy = True
-        if target_category == CATEGORY_REJECTED:
-            try:
-                # Dosya runs klasörü içindeyse (upload) kopyala, dışındaysa (yerel) atla.
-                source_path.resolve().relative_to(runs_dir.resolve())
-            except ValueError:
-                should_copy = False
-        
-        if should_copy:
-            copied_path = copy_to_category(source_path, output_dir, target_category)
-            record["copied_path"] = str(copied_path.resolve())
-            log(f"Kopyalandı: {record['category']}/{copied_path.name}")
-        else:
-            record["copied_path"] = str(source_path.resolve())
-            log(f"Yerinde bırakıldı (Elenen): {source_path.name}")
+        copied_path = copy_to_category(source_path, output_dir, target_category)
+        record["copied_path"] = str(copied_path.resolve())
+        log(f"Kopyalandı: {record['category']}/{copied_path.name}")
 
 
 def _analyze_photo_worker(image_path_text: str, thumbnail_path_text: str | None = None) -> dict[str, Any]:
@@ -195,6 +219,12 @@ def _analyze_photo_worker(image_path_text: str, thumbnail_path_text: str | None 
                 "best_in_group": True,
                 "is_duplicate": False,
                 "duplicate_of": "",
+                "ai_analysis_candidate": category == CATEGORY_SELECTED,
+                "ai_aesthetic_score": None,
+                "ai_pose_score": None,
+                "ai_expression_note": "",
+                "ai_selection_reason": "",
+                "ai_recommended": None,
                 "thumbnail_path": thumbnail_path_text or "",
             },
             "error": "",

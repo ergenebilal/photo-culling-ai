@@ -19,22 +19,28 @@ def mark_similar_groups(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
             hashes.append((index, imagehash.phash(image)))
         except Exception:
             record["similarity_group_id"] = f"group_{index + 1}"
+            record["similarity_group_size"] = 1
             record["best_in_group"] = True
+            record["is_duplicate"] = False
+            record["duplicate_of"] = ""
 
     groups = _build_groups(hashes)
 
     for group_number, group_indexes in enumerate(groups, start=1):
         group_id = f"group_{group_number}"
+        group_size = len(group_indexes)
         best_index = max(group_indexes, key=lambda item: records[item]["final_score"])
         best_filename = records[best_index]["filename"]
 
         for record_index in group_indexes:
             records[record_index]["similarity_group_id"] = group_id
+            records[record_index]["similarity_group_size"] = group_size
             records[record_index]["best_in_group"] = record_index == best_index
             records[record_index]["is_duplicate"] = record_index != best_index
             records[record_index]["duplicate_of"] = "" if record_index == best_index else best_filename
 
     for record in records:
+        record.setdefault("similarity_group_size", 1)
         record.setdefault("is_duplicate", False)
         record.setdefault("duplicate_of", "")
         record.pop("image_for_hash", None)

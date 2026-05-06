@@ -10,3 +10,7 @@ numpy
 pandas
 imagehash
 rawpy
+sqlalchemy
+pyinstaller
+pywebview
+openai

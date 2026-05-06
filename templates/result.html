@@ -4,15 +4,18 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Ayıklama Sonuçları | Ergene AI</title>
+    <link rel="icon" href="/static/ergene-ai-logo.ico" />
     {% if job_status == "processing" %}
       <meta http-equiv="refresh" content="5; url=/result/{{ job_id }}" />
     {% endif %}
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/static/js/tailwind.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
       body { font-family: 'Inter', sans-serif; }
       .glass { background: rgba(17, 17, 17, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
       .photo-card:hover .overlay { opacity: 1; }
+      .photo-card.is-filtered-out { display: none; }
+      .compare-stack-item.is-active { border-color: rgba(74, 222, 128, 0.85); box-shadow: 0 0 0 1px rgba(74, 222, 128, 0.35); }
       .loader-bar { height: 2px; width: 100%; background: #1a1a1a; position: relative; overflow: hidden; }
       .loader-bar::after { content: ''; position: absolute; left: -50%; height: 100%; width: 50%; background: #fff; animation: loading 1.5s infinite; }
       @keyframes loading { from { left: -50%; } to { left: 100%; } }
@@ -26,7 +29,7 @@
     </div>
 
     <main class="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-      <!-- Header -->
+      <!-- Üst alan -->
       <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-8 border-b border-white/5 pb-12">
         <div class="flex items-center gap-6">
           <div class="p-3 bg-[#111] border border-white/10 rounded-2xl">
@@ -35,20 +38,22 @@
           <div>
             <nav class="text-xs font-medium uppercase tracking-widest text-white/40 mb-2">Photo Culling AI</nav>
             <h1 class="text-4xl font-bold tracking-tight text-white">
-                {% if job_status == "processing" %}Analiz Sürüyor...{% else %}Ayıklama Sonuçları{% endif %}
+                {% if job_status == "processing" %}Analiz Sürüyor...{% elif job_status == "failed" %}İşlem Tamamlanamadı{% else %}Ayıklama Sonuçları{% endif %}
             </h1>
           </div>
         </div>
-        <div class="flex gap-4">
+        <div class="flex flex-wrap gap-3">
             <a href="/" class="px-6 py-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition-all text-sm font-medium">Yeni Yükleme</a>
-            {% if job_status == "completed" %}
-                <a href="/download/{{ job_id }}/selected" class="px-6 py-3 rounded-xl bg-white text-black hover:bg-white/90 transition-all text-sm font-bold shadow-lg shadow-white/10">Seçilenleri İndir</a>
+            {% if job_status == "completed" and summary.selected > 0 %}
+                <button onclick="openOutputFolder('{{ job_id }}', 'selected')" class="px-6 py-3 rounded-xl bg-white text-black hover:bg-white/90 transition-all text-sm font-bold shadow-lg shadow-white/10">Seçilenler Klasörünü Aç</button>
+                <button id="ai-analysis-btn" onclick="runAIAnalysis('{{ job_id }}')" class="px-5 py-3 rounded-xl border border-emerald-400/20 bg-emerald-400/10 hover:bg-emerald-400/20 transition-all text-sm font-bold text-emerald-100">AI Skorla</button>
+                <a href="/download/{{ job_id }}/selected" class="px-5 py-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition-all text-sm font-medium text-white/70">ZIP İndir</a>
             {% endif %}
         </div>
       </div>
 
       {% if job_status == "processing" %}
-      <!-- Processing State -->
+      <!-- İşlem durumu -->
       <div class="mt-16 text-center max-w-2xl mx-auto py-20 border border-white/5 rounded-3xl bg-[#0a0a0a]">
         <div class="mb-8 inline-flex p-4 rounded-full bg-white/5 animate-pulse">
             <svg class="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
@@ -68,8 +73,22 @@
         </div>
       </div>
 
+      {% elif job_status == "failed" %}
+      <!-- Hata durumu -->
+      <div class="mt-16 max-w-3xl mx-auto p-8 border border-red-500/20 rounded-3xl bg-red-500/10">
+        <h2 class="text-2xl font-semibold text-white mb-4">İşlem sırasında hata oluştu</h2>
+        <p class="text-red-100/70 text-sm leading-relaxed">{{ message }}</p>
+        {% if log_lines %}
+          <details class="mt-8 rounded-2xl border border-white/10 bg-black/30 p-5">
+            <summary class="cursor-pointer text-xs font-bold uppercase tracking-widest text-white/50">Teknik logları göster</summary>
+            <pre class="mt-4 max-h-80 overflow-auto whitespace-pre-wrap text-[11px] leading-relaxed text-white/40">{% for line in log_lines %}{{ line }}
+{% endfor %}</pre>
+          </details>
+        {% endif %}
+      </div>
+
       {% elif job_status == "completed" %}
-      <!-- Dashboard -->
+      <!-- Özet alanı -->
       <div class="mt-12 grid grid-cols-2 md:grid-cols-4 gap-4">
         <div class="glass p-6 rounded-2xl">
           <span class="text-xs font-medium text-white/40 uppercase tracking-widest">Toplam</span>
@@ -89,9 +108,35 @@
         </div>
       </div>
 
-      <!-- Gallery -->
+      {% if log_lines %}
+      <!-- Gizli log paneli -->
+      <details class="mt-8 rounded-2xl border border-white/10 bg-[#0a0a0a] p-5">
+        <summary class="cursor-pointer text-xs font-bold uppercase tracking-widest text-white/40">Atlanan dosya detaylarını göster</summary>
+        <pre class="mt-4 max-h-80 overflow-auto whitespace-pre-wrap text-[11px] leading-relaxed text-white/35">{% for line in log_lines %}{{ line }}
+{% endfor %}</pre>
+      </details>
+      {% endif %}
+
+      <section class="mt-8 rounded-2xl border border-white/10 bg-[#0a0a0a] p-5">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 class="text-sm font-bold uppercase tracking-widest text-white/50">Profesyonel Ayıklama</h2>
+            <p class="mt-1 text-xs text-white/35">Yıldız ver, favorile, renk etiketi ata ve filtreyle çalış. Kısayollar: 1-5 yıldız, 0 sıfırla, F favori, A/D gezin.</p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button onclick="applyGalleryFilter('all')" class="rounded-lg border border-white/10 bg-white px-3 py-2 text-xs font-bold text-black">Tümü</button>
+            <button onclick="applyGalleryFilter('selected')" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-white/60 hover:text-white">Seçilen</button>
+            <button onclick="applyGalleryFilter('favorites')" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-white/60 hover:text-white">Favoriler</button>
+            <button onclick="applyGalleryFilter('rated')" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-white/60 hover:text-white">Yıldızlı</button>
+            <button onclick="applyGalleryFilter('duplicates')" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-white/60 hover:text-white">Benzerler</button>
+            <button onclick="openFirstCompareStack()" class="rounded-lg border border-emerald-400/20 bg-emerald-400/10 px-3 py-2 text-xs font-bold text-emerald-100 hover:bg-emerald-400/20">Side-by-side Compare</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Galeri alanı -->
       <div class="mt-16 space-y-20">
-        <!-- Selected Section -->
+        <!-- Seçilenler bölümü -->
         <section>
             <div class="flex items-center justify-between mb-8">
                 <h3 class="text-2xl font-bold flex items-center gap-3">
@@ -101,45 +146,124 @@
             </div>
             <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                 {% for photo in selected_items %}
-                <div id="photo-{{ photo.id }}" class="photo-card relative group rounded-2xl overflow-hidden bg-[#111] border border-white/5 aspect-square">
+                <div
+                    id="photo-{{ photo.id }}"
+                    class="photo-card relative group rounded-2xl overflow-hidden bg-[#111] border border-white/5 aspect-square cursor-zoom-in"
+                    data-photo-id="{{ photo.id }}"
+                    data-category="selected"
+                    data-filename="{{ photo.filename }}"
+                    data-score="{{ photo.final_score }}"
+                    data-reason="{{ photo.reason }}"
+                    data-group="{{ photo.similarity_group_id or 'Tekil' }}"
+                    data-group-size="{{ photo.similarity_group_size or 1 }}"
+                    data-rating="{{ photo.star_rating or 0 }}"
+                    data-favorite="{{ 1 if photo.favorite else 0 }}"
+                    data-label="{{ photo.color_label or '' }}"
+                    data-duplicate="{{ 1 if photo.is_duplicate else 0 }}"
+                    data-duplicate-of="{{ photo.duplicate_of or '' }}"
+                    data-best-in-group="{{ 1 if photo.best_in_group else 0 }}"
+                    data-ai-aesthetic="{{ photo.ai_aesthetic_score if photo.ai_aesthetic_score is not none else '--' }}"
+                    data-ai-pose="{{ photo.ai_pose_score if photo.ai_pose_score is not none else '--' }}"
+                    data-ai-recommended="{{ 1 if photo.ai_recommended else 0 if photo.ai_recommended is not none else '' }}"
+                    data-ai-reason="{{ photo.ai_selection_reason or '' }}"
+                    data-ai-expression="{{ photo.ai_expression_note or '' }}"
+                    data-full-src="/photo/{{ job_id }}/{{ photo.id }}/image?variant=full"
+                    onclick="openLightbox({{ photo.id }})"
+                >
                     <img 
-                        src="/runs/{{ job_id }}/{{ photo.thumbnail_path if photo.thumbnail_path else photo.relative_path }}" 
+                        src="/photo/{{ job_id }}/{{ photo.id }}/image?variant=thumb" 
                         alt="{{ photo.filename }}" 
                         class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                         loading="lazy"
                     >
+                    <div class="absolute left-0 right-0 bottom-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-3">
+                        <p class="truncate text-xs font-semibold text-white" title="{{ photo.filename }}">{{ photo.filename }}</p>
+                        <p class="text-[10px] text-green-200/80">Skor {{ photo.final_score }}{% if (photo.similarity_group_size or 1) > 1 and photo.similarity_group_id %} · {{ photo.similarity_group_id }}{% endif %}</p>
+                    </div>
+                    {% if photo.best_in_group and (photo.similarity_group_size or 1) > 1 %}
+                    <div class="absolute left-3 top-3 rounded-full bg-green-400 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-black">Grubun En İyisi</div>
+                    {% endif %}
+                    <div class="absolute right-3 top-3 flex flex-col items-end gap-2">
+                      <div class="rounded-full bg-black/70 px-2 py-1 text-[10px] font-bold text-white" data-rating-pill>{{ photo.star_rating or 0 }}★</div>
+                      <div class="{% if not photo.favorite %}hidden {% endif %}rounded-full bg-white px-2 py-1 text-[10px] font-bold text-black" data-favorite-pill>Favori</div>
+                    </div>
                     <div class="overlay absolute inset-0 bg-black/60 opacity-0 transition-all duration-300 flex flex-col justify-end p-4">
                         <p class="text-xs font-bold text-white mb-1">Skor: {{ photo.final_score }}</p>
                         <p class="text-[10px] text-white/60 mb-4 line-clamp-2">{{ photo.reason }}</p>
-                        <button onclick="togglePhoto('{{ job_id }}', {{ photo.id }})" class="w-full py-2 bg-white text-black text-xs font-bold rounded-lg hover:bg-neutral-200 transition-colors">Elenenlere Taşı</button>
+                        {% if (photo.similarity_group_size or 1) > 1 %}
+                        <button onclick="event.stopPropagation(); openCompareStackFromCard(this.closest('[data-photo-id]'))" class="mb-2 w-full rounded-lg border border-emerald-400/20 bg-emerald-400/10 py-2 text-xs font-bold text-emerald-100 hover:bg-emerald-400/20">Stack Karşılaştır</button>
+                        {% endif %}
+                        <button onclick="event.stopPropagation(); togglePhoto('{{ job_id }}', {{ photo.id }})" class="w-full py-2 bg-white text-black text-xs font-bold rounded-lg hover:bg-neutral-200 transition-colors">Elenenlere Taşı</button>
                     </div>
                 </div>
                 {% endfor %}
             </div>
         </section>
 
-        <!-- Rejected Section -->
+        <!-- Elenenler bölümü -->
         <section class="opacity-80 hover:opacity-100 transition-opacity">
             <div class="flex items-center justify-between mb-8">
                 <h3 class="text-2xl font-bold flex items-center gap-3 text-white/50">
                     <span class="w-2 h-8 bg-white/10 rounded-full"></span>
                     Elenen Kareler
                 </h3>
-                <a href="/download/{{ job_id }}/rejected" class="text-xs font-medium text-white/40 hover:text-white underline underline-offset-4">Elenenleri İndir</a>
+                {% if summary.rejected > 0 %}
+                    <div class="flex items-center gap-3">
+                        <button onclick="openOutputFolder('{{ job_id }}', 'rejected')" class="text-xs font-medium text-white/50 hover:text-white underline underline-offset-4">Elenenler Klasörünü Aç</button>
+                        <a href="/download/{{ job_id }}/rejected" class="text-xs font-medium text-white/30 hover:text-white underline underline-offset-4">ZIP İndir</a>
+                    </div>
+                {% endif %}
             </div>
             <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                 {% for photo in rejected_items %}
-                <div id="photo-{{ photo.id }}" class="photo-card relative group rounded-xl overflow-hidden bg-[#111] border border-white/5 aspect-square">
+                <div
+                    id="photo-{{ photo.id }}"
+                    class="photo-card relative group rounded-xl overflow-hidden bg-[#111] border border-white/5 aspect-square cursor-zoom-in"
+                    data-photo-id="{{ photo.id }}"
+                    data-category="rejected"
+                    data-filename="{{ photo.filename }}"
+                    data-score="{{ photo.final_score }}"
+                    data-reason="{{ photo.reason }}"
+                    data-group="{{ photo.similarity_group_id or 'Tekil' }}"
+                    data-group-size="{{ photo.similarity_group_size or 1 }}"
+                    data-rating="{{ photo.star_rating or 0 }}"
+                    data-favorite="{{ 1 if photo.favorite else 0 }}"
+                    data-label="{{ photo.color_label or '' }}"
+                    data-duplicate="{{ 1 if photo.is_duplicate else 0 }}"
+                    data-duplicate-of="{{ photo.duplicate_of or '' }}"
+                    data-best-in-group="{{ 1 if photo.best_in_group else 0 }}"
+                    data-ai-aesthetic="{{ photo.ai_aesthetic_score if photo.ai_aesthetic_score is not none else '--' }}"
+                    data-ai-pose="{{ photo.ai_pose_score if photo.ai_pose_score is not none else '--' }}"
+                    data-ai-recommended="{{ 1 if photo.ai_recommended else 0 if photo.ai_recommended is not none else '' }}"
+                    data-ai-reason="{{ photo.ai_selection_reason or '' }}"
+                    data-ai-expression="{{ photo.ai_expression_note or '' }}"
+                    data-full-src="/photo/{{ job_id }}/{{ photo.id }}/image?variant=full"
+                    onclick="openLightbox({{ photo.id }})"
+                >
                     <img 
-                        src="/runs/{{ job_id }}/{{ photo.thumbnail_path if photo.thumbnail_path else photo.relative_path }}" 
+                        src="/photo/{{ job_id }}/{{ photo.id }}/image?variant=thumb" 
                         alt="{{ photo.filename }}" 
                         class="w-full h-full object-cover opacity-40 group-hover:opacity-100 transition-all"
                         loading="lazy"
                     >
+                    <div class="absolute left-0 right-0 bottom-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-2">
+                        <p class="truncate text-[11px] font-semibold text-white/80" title="{{ photo.filename }}">{{ photo.filename }}</p>
+                        <p class="text-[9px] text-white/40">{% if photo.is_duplicate and (photo.similarity_group_size or 1) > 1 %}Benzer kare · {{ photo.similarity_group_id }}{% else %}Skor {{ photo.final_score }}{% if (photo.similarity_group_size or 1) > 1 and photo.similarity_group_id %} · {{ photo.similarity_group_id }}{% endif %}{% endif %}</p>
+                    </div>
+                    {% if photo.best_in_group and (photo.similarity_group_size or 1) > 1 %}
+                    <div class="absolute left-2 top-2 rounded-full bg-white px-2 py-1 text-[9px] font-bold uppercase tracking-widest text-black">Grubun En İyisi</div>
+                    {% endif %}
+                    <div class="absolute right-2 top-2 flex flex-col items-end gap-1">
+                      <div class="rounded-full bg-black/70 px-2 py-1 text-[9px] font-bold text-white" data-rating-pill>{{ photo.star_rating or 0 }}★</div>
+                      <div class="{% if not photo.favorite %}hidden {% endif %}rounded-full bg-white px-2 py-1 text-[9px] font-bold text-black" data-favorite-pill>Favori</div>
+                    </div>
                     <div class="overlay absolute inset-0 bg-black/80 opacity-0 transition-all duration-300 flex flex-col justify-center items-center p-2">
-                        <button onclick="togglePhoto('{{ job_id }}', {{ photo.id }})" class="p-2 rounded-full bg-white text-black hover:scale-110 transition-transform">
+                        <button onclick="event.stopPropagation(); togglePhoto('{{ job_id }}', {{ photo.id }})" class="p-2 rounded-full bg-white text-black hover:scale-110 transition-transform">
                             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 1.414L10.586 9H7a1 1 0 100 2h3.586l-1.293 1.293a1 1 0 101.414 1.414l3-3a1 1 0 000-1.414z"></path></svg>
                         </button>
+                        {% if (photo.similarity_group_size or 1) > 1 %}
+                        <button onclick="event.stopPropagation(); openCompareStackFromCard(this.closest('[data-photo-id]'))" class="mt-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-2 text-[9px] font-bold text-emerald-100">Stack</button>
+                        {% endif %}
                         <p class="text-[8px] text-white/60 mt-2 text-center">{{ photo.reason }}</p>
                     </div>
                 </div>
@@ -149,7 +273,7 @@
       </div>
       {% endif %}
 
-      <!-- Footer -->
+      <!-- Alt bilgi -->
       <footer class="mt-32 pt-12 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-8">
         <div class="text-center md:text-left">
             <p class="text-xs font-bold uppercase tracking-widest text-white/20">Powered by Ergene AI</p>
@@ -159,13 +283,372 @@
       </footer>
     </main>
 
+    <div id="photo-lightbox" class="fixed inset-0 z-[9999] hidden bg-black/95 text-white">
+      <div class="flex h-full flex-col lg:flex-row">
+        <div class="relative flex min-h-0 flex-1 items-center justify-center p-4 lg:p-8">
+          <button onclick="moveLightbox(-1)" class="absolute left-4 top-1/2 z-10 -translate-y-1/2 rounded-full border border-white/10 bg-white/10 p-3 text-white hover:bg-white/20" aria-label="Önceki fotoğraf">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+          </button>
+          <img id="lightbox-image" src="" alt="" class="max-h-full max-w-full rounded-xl object-contain shadow-2xl shadow-black">
+          <button onclick="moveLightbox(1)" class="absolute right-4 top-1/2 z-10 -translate-y-1/2 rounded-full border border-white/10 bg-white/10 p-3 text-white hover:bg-white/20" aria-label="Sonraki fotoğraf">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+          </button>
+        </div>
+        <aside class="w-full border-t border-white/10 bg-[#080808] p-6 lg:w-96 lg:border-l lg:border-t-0">
+          <div class="flex items-start justify-between gap-4">
+            <div class="min-w-0">
+              <p id="lightbox-category" class="mb-2 text-[10px] font-bold uppercase tracking-widest text-white/30"></p>
+              <h2 id="lightbox-filename" class="break-words text-xl font-bold text-white"></h2>
+            </div>
+            <button onclick="closeLightbox()" class="rounded-full border border-white/10 bg-white/5 p-2 text-white/60 hover:text-white" aria-label="Kapat">
+              <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+          </div>
+          <div class="mt-8 grid grid-cols-2 gap-3">
+            <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <p class="text-[10px] uppercase tracking-widest text-white/30">Final Skor</p>
+              <p id="lightbox-score" class="mt-1 text-3xl font-bold"></p>
+            </div>
+            <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <p class="text-[10px] uppercase tracking-widest text-white/30">Benzer Grup</p>
+              <p id="lightbox-group" class="mt-1 text-sm font-semibold text-white"></p>
+              <p id="lightbox-duplicate" class="mt-1 text-xs text-white/40"></p>
+            </div>
+          </div>
+          <div class="mt-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+            <p class="text-[10px] uppercase tracking-widest text-white/30">Kısayollar</p>
+            <p class="mt-2 text-xs text-white/60">A/D gezin, 1-5 yıldız, 0 sıfırla, F favori, Esc kapat</p>
+          </div>
+          <div class="mt-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div class="mb-3 flex items-center justify-between">
+              <p class="text-[10px] uppercase tracking-widest text-white/30">Rating</p>
+              <button onclick="toggleCurrentFavorite()" class="rounded-lg border border-white/10 px-3 py-2 text-xs font-bold text-white/70 hover:bg-white/10" id="lightbox-favorite-btn">Favori</button>
+            </div>
+            <div class="grid grid-cols-6 gap-2">
+              <button onclick="updateCurrentRating(0)" class="rounded-lg bg-white/5 py-2 text-xs font-bold text-white/50 hover:bg-white/10">0</button>
+              {% for rating in [1, 2, 3, 4, 5] %}
+              <button onclick="updateCurrentRating({{ rating }})" class="rounded-lg bg-white/5 py-2 text-xs font-bold text-white/70 hover:bg-white/10">{{ rating }}★</button>
+              {% endfor %}
+            </div>
+            <div class="mt-3 grid grid-cols-5 gap-2">
+              <button onclick="updateCurrentLabel('')" class="rounded-lg border border-white/10 py-2 text-[10px] font-bold text-white/40">Yok</button>
+              <button onclick="updateCurrentLabel('red')" class="rounded-lg bg-red-500/80 py-2 text-[10px] font-bold text-white">Kırmızı</button>
+              <button onclick="updateCurrentLabel('yellow')" class="rounded-lg bg-yellow-400/90 py-2 text-[10px] font-bold text-black">Sarı</button>
+              <button onclick="updateCurrentLabel('green')" class="rounded-lg bg-green-400/90 py-2 text-[10px] font-bold text-black">Yeşil</button>
+              <button onclick="updateCurrentLabel('blue')" class="rounded-lg bg-blue-400/90 py-2 text-[10px] font-bold text-black">Mavi</button>
+            </div>
+          </div>
+          <div class="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
+            <p class="mb-2 text-[10px] font-bold uppercase tracking-widest text-white/30">Seçim Gerekçesi</p>
+            <p id="lightbox-reason" class="text-sm leading-relaxed text-white/70"></p>
+          </div>
+          <div class="mt-4 rounded-2xl border border-emerald-400/10 bg-emerald-400/5 p-4">
+            <div class="mb-3 flex items-center justify-between gap-3">
+              <p class="text-[10px] font-bold uppercase tracking-widest text-emerald-100/50">AI Gerekçesi</p>
+              <p id="lightbox-ai-score" class="text-xs font-bold text-emerald-100"></p>
+            </div>
+            <p id="lightbox-ai-reason" class="text-sm leading-relaxed text-white/70"></p>
+            <p id="lightbox-ai-expression" class="mt-2 text-xs leading-relaxed text-white/40"></p>
+          </div>
+          <div class="mt-6 grid grid-cols-2 gap-3">
+            <button onclick="openCurrentCompareStack()" class="col-span-2 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-4 text-sm font-bold text-emerald-100 hover:bg-emerald-400/20">Benzer Stack Karşılaştır</button>
+            <button onclick="toggleCurrentLightboxPhoto('selected')" class="rounded-2xl bg-white px-4 py-4 text-sm font-bold text-black hover:bg-neutral-200">Seçilenlere Al</button>
+            <button onclick="toggleCurrentLightboxPhoto('rejected')" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-sm font-bold text-white hover:bg-white/10">Elenenlere Al</button>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <div id="compare-stack-modal" class="fixed inset-0 z-[10000] hidden bg-black/95 text-white">
+      <div class="flex h-full flex-col">
+        <header class="flex flex-col gap-4 border-b border-white/10 bg-[#080808] p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p class="text-[10px] font-bold uppercase tracking-widest text-emerald-100/45">Side-by-side Compare</p>
+            <h2 id="compare-stack-title" class="mt-1 text-2xl font-bold text-white">Benzer Stack</h2>
+            <p id="compare-stack-subtitle" class="mt-1 text-xs text-white/40"></p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button onclick="applyGalleryFilter('duplicates')" class="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-bold text-white/60 hover:bg-white/10">Benzerleri Filtrele</button>
+            <button onclick="closeCompareStack()" class="rounded-xl bg-white px-4 py-3 text-xs font-bold text-black hover:bg-neutral-200">Kapat</button>
+          </div>
+        </header>
+        <div class="min-h-0 flex-1 overflow-auto p-4 lg:p-6">
+          <div data-compare-grid class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"></div>
+        </div>
+      </div>
+    </div>
+
     <script>
+      const lightbox = document.getElementById('photo-lightbox');
+      const compareStackModal = document.getElementById('compare-stack-modal');
+      const compareStackTitle = document.getElementById('compare-stack-title');
+      const compareStackSubtitle = document.getElementById('compare-stack-subtitle');
+      const compareStackGrid = compareStackModal ? compareStackModal.querySelector('[data-compare-grid]') : null;
+      const lightboxImage = document.getElementById('lightbox-image');
+      const lightboxFilename = document.getElementById('lightbox-filename');
+      const lightboxCategory = document.getElementById('lightbox-category');
+      const lightboxScore = document.getElementById('lightbox-score');
+      const lightboxReason = document.getElementById('lightbox-reason');
+      const lightboxGroup = document.getElementById('lightbox-group');
+      const lightboxDuplicate = document.getElementById('lightbox-duplicate');
+      const lightboxAIScore = document.getElementById('lightbox-ai-score');
+      const lightboxAIReason = document.getElementById('lightbox-ai-reason');
+      const lightboxAIExpression = document.getElementById('lightbox-ai-expression');
+      const colorLabels = ['', 'red', 'yellow', 'green', 'blue'];
+      let lightboxCards = [];
+      let currentLightboxIndex = -1;
+      let currentCompareAnchorId = '';
+
+      function refreshLightboxCards() {
+        lightboxCards = Array.from(document.querySelectorAll('[data-photo-id]'));
+      }
+
+      function openLightbox(photoId) {
+        refreshLightboxCards();
+        currentLightboxIndex = lightboxCards.findIndex((card) => card.dataset.photoId === String(photoId));
+        if (currentLightboxIndex < 0) return;
+        renderLightbox();
+        lightbox.classList.remove('hidden');
+        document.body.classList.add('overflow-hidden');
+        document.addEventListener('keydown', handleLightboxKeydown);
+      }
+
+      function renderLightbox() {
+        const card = lightboxCards[currentLightboxIndex];
+        if (!card) return;
+        lightboxImage.src = card.dataset.fullSrc;
+        lightboxImage.alt = card.dataset.filename || '';
+        lightboxFilename.textContent = card.dataset.filename || '';
+        lightboxCategory.textContent = card.dataset.category === 'selected' ? 'Seçilen kare' : 'Elenen kare';
+        lightboxScore.textContent = card.dataset.score || '--';
+        lightboxReason.textContent = card.dataset.reason || 'Gerekçe bulunamadı.';
+        const groupSize = Number(card.dataset.groupSize || '1');
+        lightboxGroup.textContent = groupSize > 1 ? (card.dataset.group || 'Tekil') : 'Tekil';
+        if (card.dataset.duplicate === '1') {
+          lightboxDuplicate.textContent = `Benzer/tekrar kare. En iyi eşleşme: ${card.dataset.duplicateOf || 'bilinmiyor'}.`;
+        } else if (groupSize <= 1) {
+          lightboxDuplicate.textContent = 'Tekil kare.';
+        } else if (card.dataset.bestInGroup === '1') {
+          lightboxDuplicate.textContent = 'Benzer grup içinde en yüksek teknik skora sahip kare.';
+        } else {
+          lightboxDuplicate.textContent = 'Benzer grup içinde alternatif kare.';
+        }
+        lightboxAIScore.textContent = `Estetik ${card.dataset.aiAesthetic || '--'} · Poz ${card.dataset.aiPose || '--'}`;
+        lightboxAIReason.textContent = card.dataset.aiReason || 'AI analizi henüz çalıştırılmadı.';
+        lightboxAIExpression.textContent = card.dataset.aiExpression || '';
+        const favoriteButton = document.getElementById('lightbox-favorite-btn');
+        if (favoriteButton) {
+          favoriteButton.textContent = card.dataset.favorite === '1' ? 'Favori ✓' : 'Favori';
+          favoriteButton.classList.toggle('bg-white', card.dataset.favorite === '1');
+          favoriteButton.classList.toggle('text-black', card.dataset.favorite === '1');
+        }
+      }
+
+      function closeLightbox() {
+        lightbox.classList.add('hidden');
+        lightboxImage.src = '';
+        document.body.classList.remove('overflow-hidden');
+        document.removeEventListener('keydown', handleLightboxKeydown);
+      }
+
+      function moveLightbox(direction) {
+        if (!lightboxCards.length) return;
+        currentLightboxIndex = (currentLightboxIndex + direction + lightboxCards.length) % lightboxCards.length;
+        renderLightbox();
+      }
+
+      function handleLightboxKeydown(event) {
+        if (event.key === 'Escape') closeLightbox();
+        if (event.key === 'ArrowLeft' || event.key.toLowerCase() === 'a') moveLightbox(-1);
+        if (event.key === 'ArrowRight' || event.key.toLowerCase() === 'd') moveLightbox(1);
+        if (event.key === 'f' || event.key === 'F') toggleCurrentFavorite();
+        if (event.key >= '0' && event.key <= '5') updateCurrentRating(Number(event.key));
+      }
+
+      function toggleCurrentLightboxPhoto(targetCategory) {
+        const card = lightboxCards[currentLightboxIndex];
+        if (!card || card.dataset.category === targetCategory) return;
+        togglePhoto('{{ job_id }}', card.dataset.photoId);
+      }
+
+      function openFirstCompareStack() {
+        refreshLightboxCards();
+        const firstStackCard = lightboxCards.find((card) => Number(card.dataset.groupSize || '1') > 1);
+        if (!firstStackCard) {
+          alert('Karşılaştırılacak benzer fotoğraf grubu bulunamadı.');
+          return;
+        }
+        openCompareStackFromCard(firstStackCard);
+      }
+
+      function openCurrentCompareStack() {
+        const card = lightboxCards[currentLightboxIndex];
+        if (!card) return;
+        openCompareStackFromCard(card);
+      }
+
+      function openCompareStackFromCard(card) {
+        const stackCards = getStackCards(card);
+        if (stackCards.length < 2) {
+          alert('Bu kare tekil; side-by-side karşılaştırma için aynı grupta en az iki fotoğraf gerekli.');
+          return;
+        }
+        renderCompareStack(card, stackCards);
+        currentCompareAnchorId = card.dataset.photoId || '';
+        compareStackModal.classList.remove('hidden');
+        document.body.classList.add('overflow-hidden');
+      }
+
+      function getStackCards(card) {
+        refreshLightboxCards();
+        const groupId = card.dataset.group || '';
+        if (!groupId || groupId === 'Tekil' || Number(card.dataset.groupSize || '1') < 2) return [];
+        return lightboxCards
+          .filter((candidate) => candidate.dataset.group === groupId && Number(candidate.dataset.groupSize || '1') > 1)
+          .sort((left, right) => {
+            const bestDiff = Number(right.dataset.bestInGroup || '0') - Number(left.dataset.bestInGroup || '0');
+            if (bestDiff !== 0) return bestDiff;
+            return Number(right.dataset.score || '0') - Number(left.dataset.score || '0');
+          });
+      }
+
+      function renderCompareStack(activeCard, stackCards) {
+        compareStackTitle.textContent = `${activeCard.dataset.group} · ${stackCards.length} kare`;
+        compareStackSubtitle.textContent = 'En iyi aday, duplicate bilgisi, teknik skor, AI notu ve kullanıcı rating kararları aynı ekranda.';
+        compareStackGrid.innerHTML = stackCards.map((card) => compareStackItemHTML(card, card.dataset.photoId === activeCard.dataset.photoId)).join('');
+      }
+
+      function compareStackItemHTML(card, isActive) {
+        const bestBadge = card.dataset.bestInGroup === '1' ? '<span class="rounded-full bg-green-400 px-2 py-1 text-[10px] font-bold text-black">Grubun En İyisi</span>' : '';
+        const duplicateBadge = card.dataset.duplicate === '1' ? '<span class="rounded-full bg-white/10 px-2 py-1 text-[10px] font-bold text-white/50">Benzer/tekrar</span>' : '';
+        const favoriteBadge = card.dataset.favorite === '1' ? '<span class="rounded-full bg-white px-2 py-1 text-[10px] font-bold text-black">Favori</span>' : '';
+        const aiReason = card.dataset.aiReason || 'AI analizi henüz çalıştırılmadı.';
+        const duplicateOf = card.dataset.duplicateOf ? `<p class="mt-1 text-[10px] text-white/35">Eşleşme: ${escapeHTML(card.dataset.duplicateOf)}</p>` : '';
+        return `
+          <article class="compare-stack-item ${isActive ? 'is-active' : ''} overflow-hidden rounded-2xl border border-white/10 bg-[#101010]">
+            <div class="relative aspect-[4/3] bg-black">
+              <img src="${card.dataset.fullSrc}" alt="${escapeHTML(card.dataset.filename || '')}" class="h-full w-full object-contain">
+              <div class="absolute left-3 top-3 flex flex-wrap gap-2">${bestBadge}${duplicateBadge}${favoriteBadge}</div>
+            </div>
+            <div class="space-y-4 p-4">
+              <div>
+                <h3 class="truncate text-sm font-bold text-white" title="${escapeHTML(card.dataset.filename || '')}">${escapeHTML(card.dataset.filename || '')}</h3>
+                <p class="mt-1 text-xs text-white/45">${card.dataset.category === 'selected' ? 'Seçilen' : 'Elenen'} · Skor ${escapeHTML(card.dataset.score || '--')} · ${escapeHTML(card.dataset.rating || '0')}★</p>
+                ${duplicateOf}
+              </div>
+              <div class="grid grid-cols-2 gap-2 text-xs">
+                <button onclick="event.stopPropagation(); openLightbox(${card.dataset.photoId}); closeCompareStack();" class="rounded-xl border border-white/10 bg-white/5 px-3 py-3 font-bold text-white/70 hover:bg-white/10">Büyük Gör</button>
+                <button onclick="event.stopPropagation(); togglePhoto('{{ job_id }}', ${card.dataset.photoId})" class="rounded-xl bg-white px-3 py-3 font-bold text-black hover:bg-neutral-200">${card.dataset.category === 'selected' ? 'Ele' : 'Seç'}</button>
+                <button onclick="event.stopPropagation(); updatePhotoMetadata(document.querySelector('[data-photo-id=&quot;${card.dataset.photoId}&quot;]'), { star_rating: 5 })" class="rounded-xl border border-white/10 bg-white/5 px-3 py-3 font-bold text-white/70 hover:bg-white/10">5★</button>
+                <button onclick="event.stopPropagation(); updatePhotoMetadata(document.querySelector('[data-photo-id=&quot;${card.dataset.photoId}&quot;]'), { favorite: ${card.dataset.favorite !== '1'} })" class="rounded-xl border border-white/10 bg-white/5 px-3 py-3 font-bold text-white/70 hover:bg-white/10">Favori</button>
+              </div>
+              <div class="rounded-xl border border-emerald-400/10 bg-emerald-400/5 p-3">
+                <p class="text-[10px] font-bold uppercase tracking-widest text-emerald-100/45">AI / Teknik Not</p>
+                <p class="mt-2 line-clamp-3 text-xs leading-relaxed text-white/55">${escapeHTML(aiReason)}</p>
+              </div>
+            </div>
+          </article>
+        `;
+      }
+
+      function closeCompareStack() {
+        compareStackModal.classList.add('hidden');
+        currentCompareAnchorId = '';
+        if (lightbox.classList.contains('hidden')) {
+          document.body.classList.remove('overflow-hidden');
+        }
+      }
+
+      function escapeHTML(value) {
+        return String(value)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      }
+
+      function updateCurrentRating(rating) {
+        const card = lightboxCards[currentLightboxIndex];
+        if (!card) return;
+        updatePhotoMetadata(card, { star_rating: rating });
+      }
+
+      function updateCurrentLabel(label) {
+        const card = lightboxCards[currentLightboxIndex];
+        if (!card || !colorLabels.includes(label)) return;
+        updatePhotoMetadata(card, { color_label: label });
+      }
+
+      function toggleCurrentFavorite() {
+        const card = lightboxCards[currentLightboxIndex];
+        if (!card) return;
+        updatePhotoMetadata(card, { favorite: card.dataset.favorite !== '1' });
+      }
+
+      async function updatePhotoMetadata(card, payload) {
+        const response = await fetch(`/photo/{{ job_id }}/${card.dataset.photoId}/metadata`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!response.ok) {
+          alert('Fotoğraf etiketi kaydedilemedi.');
+          return;
+        }
+        const result = await response.json();
+        card.dataset.rating = String(result.star_rating || 0);
+        card.dataset.favorite = result.favorite ? '1' : '0';
+        card.dataset.label = result.color_label || '';
+        syncCardMetadataUI(card);
+        renderLightbox();
+        refreshCompareStack();
+      }
+
+      function refreshCompareStack() {
+        if (!compareStackModal || compareStackModal.classList.contains('hidden') || !currentCompareAnchorId) return;
+        const anchorCard = document.querySelector(`[data-photo-id="${currentCompareAnchorId}"]`);
+        if (!anchorCard) return;
+        const stackCards = getStackCards(anchorCard);
+        if (stackCards.length >= 2) renderCompareStack(anchorCard, stackCards);
+      }
+
+      function syncCardMetadataUI(card) {
+        const ratingPill = card.querySelector('[data-rating-pill]');
+        const favoritePill = card.querySelector('[data-favorite-pill]');
+        if (ratingPill) ratingPill.textContent = `${card.dataset.rating || '0'}★`;
+        if (favoritePill) favoritePill.classList.toggle('hidden', card.dataset.favorite !== '1');
+        card.style.outline = card.dataset.label ? `2px solid ${labelColor(card.dataset.label)}` : '';
+        card.style.outlineOffset = card.dataset.label ? '2px' : '';
+      }
+
+      function labelColor(label) {
+        return {
+          red: '#ef4444',
+          yellow: '#facc15',
+          green: '#4ade80',
+          blue: '#60a5fa'
+        }[label] || 'transparent';
+      }
+
+      function applyGalleryFilter(filterName) {
+        refreshLightboxCards();
+        lightboxCards.forEach((card) => {
+          const visible =
+            filterName === 'all' ||
+            (filterName === 'selected' && card.dataset.category === 'selected') ||
+            (filterName === 'favorites' && card.dataset.favorite === '1') ||
+            (filterName === 'rated' && Number(card.dataset.rating || '0') > 0) ||
+            (filterName === 'duplicates' && Number(card.dataset.groupSize || '1') > 1);
+          card.classList.toggle('is-filtered-out', !visible);
+        });
+      }
+
       async function togglePhoto(jobId, photoId) {
         try {
           const response = await fetch(`/toggle-photo/${jobId}/${photoId}`, { method: 'POST' });
           if (response.ok) {
-            // Ticari uygulamalarda sayfa yenilemek yerine DOM manipülasyonu tercih edilir.
-            // Ama şimdilik basitlik için yenileyebiliriz veya kartı taşıyabiliriz.
+            // Basit ve güvenli akış için işlemden sonra sayfa yenilenir.
             window.location.reload();
           }
         } catch (error) {
@@ -173,6 +656,59 @@
           alert('İşlem yapılamadı.');
         }
       }
+
+      async function openOutputFolder(jobId, folderKind) {
+        try {
+          const response = await fetch(`/open-folder/${jobId}/${folderKind}`, { method: 'POST' });
+          if (!response.ok) {
+            alert('Klasör açılamadı.');
+            return;
+          }
+          const payload = await response.json();
+          if (payload.status === 'available' && payload.path) {
+            alert(`Klasör yolu: ${payload.path}`);
+          }
+        } catch (error) {
+          console.error('Hata:', error);
+          alert('Klasör açılamadı.');
+        }
+      }
+
+      async function runAIAnalysis(jobId) {
+        const button = document.getElementById('ai-analysis-btn');
+        if (button) {
+          button.disabled = true;
+          button.textContent = 'AI Analiz Ediyor...';
+        }
+        try {
+          const response = await fetch(`/ai-analyze/${jobId}`, { method: 'POST' });
+          const payload = await response.json();
+          if (!response.ok) {
+            alert(payload.detail || 'AI analiz başlatılamadı.');
+            return;
+          }
+          if (payload.status === 'disabled') {
+            alert(payload.message || 'AI analiz kapalı. API key ana sayfadaki AI API Ayarları bölümünden eklenebilir.');
+            return;
+          }
+          window.location.reload();
+        } catch (error) {
+          console.error('Hata:', error);
+          alert('AI analiz sırasında hata oluştu.');
+        } finally {
+          if (button) {
+            button.disabled = false;
+            button.textContent = 'AI Skorla';
+          }
+        }
+      }
+
+      document.querySelectorAll('[data-photo-id]').forEach(syncCardMetadataUI);
+      document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape' && compareStackModal && !compareStackModal.classList.contains('hidden')) {
+          closeCompareStack();
+        }
+      });
     </script>
   </body>
 </html>

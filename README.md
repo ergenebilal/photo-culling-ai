@@ -61,6 +61,26 @@ http://127.0.0.1:8000
 python main.py --input ./input --output ./output
 ```
 
+## Windows EXE Oluşturma
+
+Windows üzerinde tek dosyalık uygulama üretmek için:
+
+```bash
+python build_script.py
+```
+
+Oluşan dosya:
+
+```text
+dist/ErgeneAI_PhotoCulling.exe
+```
+
+EXE açıldığında yerel sunucu başlatılır ve tarayıcı otomatik olarak açılır. Başlangıç logları şu klasörde tutulur:
+
+```text
+%LOCALAPPDATA%\ErgeneAI\logs\startup.log
+```
+
 ## Desteklenen Formatlar
 
 Web arayüzünde desteklenen formatlar:
@@ -88,6 +108,22 @@ N8N_WEBHOOK_URL=
 ```
 
 Bu alan boş bırakılırsa webhook tetiklenmez. Doluysa işlem tamamlandıktan sonra n8n webhook adresine işlem özeti gönderilir.
+
+## Gelecek AI Analiz Hazırlığı
+
+Bu sürüm OpenAI Vision veya ücretli bir API kullanmaz. Sistem tamamen offline çalışır.
+
+Bir sonraki sürüm için seçilen fotoğraflar AI analiz adayı olarak rapor verisine işlenir. Ayrılan alanlar şunlardır:
+
+```text
+ai_aesthetic_score
+ai_pose_score
+ai_expression_note
+ai_selection_reason
+ai_recommended
+```
+
+Bu alanlar şimdilik boş bırakılır. Gelecek sürümde n8n üzerinden yalnızca ön elemeden geçen seçilen fotoğraflar estetik puan, poz kalitesi, yüz/mimik yorumu ve profesyonel seçim önerisi için analiz edilebilir.
 
 ## Sunucuya Kurulum (VPS)
 
